@@ -52,15 +52,21 @@ _NAME_CONTEXT = re.compile(
 )
 
 
-def redact(text: str) -> str:
+def redact(text: str, *, redact_names: bool = True) -> str:
     """Apply all redaction rules to text. Returns redacted string."""
     for pattern, tag in _RULES:
         text = pattern.sub(tag, text)
-    # Contextual name redaction (only when word is likely a name)
-    text = _NAME_CONTEXT.sub(_maybe_redact_name, text)
+    # Contextual name redaction (only when requested — not for agent turns)
+    if redact_names:
+        text = _NAME_CONTEXT.sub(_maybe_redact_name, text)
     return text
 
 
 def redact_turn(speaker: str, text: str) -> str:
-    """Redact a single turn. Speaker label is not redacted."""
-    return redact(text)
+    """
+    Redact a single turn.
+    Agent names are NOT redacted (they are employees, not customer PII).
+    Customer names, DOB, card numbers, etc. are all redacted.
+    """
+    is_customer = speaker.lower() in ("customer", "caller", "user")
+    return redact(text, redact_names=is_customer)

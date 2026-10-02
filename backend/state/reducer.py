@@ -81,6 +81,7 @@ def apply_turn_extraction(
                               "completed_at_turn_id": turn_id}
 
     state["commitments"] = commitments
+    state["open_commitments"] = [c for c in commitments if c.get("status") not in ("completed", "cancelled")]
     state["as_of_turn_id"] = turn_id
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     return state
@@ -91,11 +92,13 @@ def initial_state(conversation_id: str) -> dict:
         "conversation_id": conversation_id,
         "provisional": True,
         "as_of_turn_id": "",
+        "reasons": [],
         "resolution": ResolutionStatus.UNKNOWN.value,
         "sentiment_current": CustomerSentiment.NEUTRAL.value,
         "sentiment_trajectory": [],
         "churn_risk": ChurnRisk.LOW.value,
         "churn_signals": [],
         "commitments": [],
+        "open_commitments": [],
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }

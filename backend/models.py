@@ -91,6 +91,7 @@ class Conversation(Base):
     turns: Mapped[list[Turn]] = relationship("Turn", back_populates="conversation", order_by="Turn.seq")
     analyses: Mapped[list[Analysis]] = relationship("Analysis", back_populates="conversation")
     jobs: Mapped[list[Job]] = relationship("Job", back_populates="conversation")
+    segments: Mapped[list[Segment]] = relationship("Segment", back_populates="conversation", order_by="Segment.created_at")
 
     __table_args__ = (
         Index("ix_conversations_source_id", "source_id"),
@@ -129,6 +130,23 @@ class Turn(Base):
     @staticmethod
     def compute_content_hash(text_redacted: str) -> str:
         return hashlib.sha256(text_redacted.encode("utf-8")).hexdigest()
+
+
+class Segment(Base):
+    """A segment boundary in a conversation, e.g. after a resume or a long pause."""
+    __tablename__ = "segments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    conversation_id: Mapped[str] = mapped_column(String(64), ForeignKey("conversations.id"), nullable=False)
+    start_turn_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    reason: Mapped[str] = mapped_column(String(32), nullable=False)  # 'resume', 'idle_gap'
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    conversation: Mapped[Conversation] = relationship("Conversation", back_populates="segments")
+
+    __table_args__ = (
+        Index("ix_segments_conversation_id", "conversation_id"),
+    )
 
 
 class StateEvent(Base):
@@ -273,4 +291,40 @@ class AuditLog(Base):
         Index("ix_audit_log_user_id", "user_id"),
         Index("ix_audit_log_resource_type", "resource_type"),
         Index("ix_audit_log_created_at", "created_at"),
+    )
+
+
+class Case(Base):
+    """A support case grouping one or more conversations."""
+    __tablename__ = "cases"
+
+    case_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)  # CRM ticket ID
+    title: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="open")  # open|closed|escalated
+    created_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    notes: Mapped[str] = mapped_column(Text, default="")
+
+    __table_args__ = (
+        Index("ix_cases_external_id", "external_id"),
+        Index("ix_cases_status", "status"),
+    )
+
+
+class CaseConversation(Base):
+    """Many-to-many join: conversations linked to a case."""
+    __tablename__ = "case_conversations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    case_id: Mapped[str] = mapped_column(String(36), ForeignKey("cases.case_id"), nullable=False)
+    conversation_id: Mapped[str] = mapped_column(String(36), ForeignKey("conversations.id"), nullable=False)
+    linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    linked_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("case_id", "conversation_id", name="uq_case_conversation"),
+        Index("ix_case_conversations_case_id", "case_id"),
+        Index("ix_case_conversations_conversation_id", "conversation_id"),
     )

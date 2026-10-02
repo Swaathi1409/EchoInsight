@@ -67,8 +67,55 @@ async def _process_one(job_id: str) -> None:
 
 async def poll_loop() -> None:
     logger.info("Worker started, polling every %ds", POLL_INTERVAL)
+    from datetime import timedelta
+    import uuid
+    from backend.models import Conversation, Turn
+    from backend.domain_model import ConversationStatus, JobType
     while True:
         try:
+            async with get_db_session() as session:
+                now = datetime.now(timezone.utc)
+                idle_threshold = now - timedelta(minutes=30)
+                
+                active_convs = (await session.execute(
+                    select(Conversation).where(Conversation.status == ConversationStatus.ACTIVE.value)
+                )).scalars().all()
+                
+                for conv in active_convs:
+                    last_turn = (await session.execute(
+                        select(Turn.timestamp).where(Turn.conversation_id == conv.id).order_by(Turn.seq.desc()).limit(1)
+                    )).scalar_one_or_none()
+                    if last_turn:
+                        last_t = last_turn.replace(tzinfo=timezone.utc) if last_turn.tzinfo is None else last_turn
+                        if last_t < idle_threshold:
+                        logger.info("Sweeping idle conversation %s", conv.id[:8])
+                        conv.status = ConversationStatus.ENDED.value
+                        conv.end_reason = "idle_timeout"
+                        conv.ended_at = now
+                        session.add(Job(
+                            job_id=str(uuid.uuid4()),
+                            job_type=JobType.FINAL_ANALYSIS.value,
+                            status=JobStatus.QUEUED.value,
+                            conversation_id=conv.id,
+                            idempotency_key=f"final-idle-{conv.id}-{uuid.uuid4().hex[:8]}",
+                        ))
+                
+                closed_threshold = now - timedelta(hours=72)
+                ended_convs = (await session.execute(
+                    select(Conversation).where(
+                        Conversation.status == ConversationStatus.ENDED.value
+                    )
+                )).scalars().all()
+                
+                for conv in ended_convs:
+                    if conv.ended_at:
+                        ended_t = conv.ended_at.replace(tzinfo=timezone.utc) if conv.ended_at.tzinfo is None else conv.ended_at
+                        if ended_t < closed_threshold:
+                            logger.info("Closing 72h expired conversation %s", conv.id[:8])
+                            conv.status = ConversationStatus.CLOSED.value
+                
+                await session.flush()
+
             async with get_db_session() as session:
                 result = await session.execute(
                     select(Job.job_id).where(Job.status == JobStatus.QUEUED.value)

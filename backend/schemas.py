@@ -112,6 +112,7 @@ class CreateConversationRequest(BaseModel):
     source_id: str | None = Field(None, description="Original dataset conversation ID (32-char hex)")
     channel: str = Field(default="call", description="Channel type (call, chat)")
     synthetic_assignment: bool = Field(default=True)
+    case_id: str | None = Field(None, description="Optional case group ID to link related conversations")
 
 
 class ConversationSummary(BaseModel):
@@ -127,6 +128,8 @@ class ConversationSummary(BaseModel):
     turn_count: int
     synthetic_assignment: bool
     analysis_version: int
+    case_id: str | None = None
+    resumed_from: str | None = None
     # Denormalized from latest analysis for list view
     qa_score: float | None = None
     churn_risk: str | None = None
@@ -196,9 +199,9 @@ class ProvisionalStateResponse(BaseModel):
     resolution: ResolutionStatus
     sentiment_current: CustomerSentiment
     sentiment_trajectory: list[SentimentPoint]
-    reasons: list[CallReason]
+    reasons: list[CallReason] = Field(default_factory=list)
     churn_risk: ChurnRisk
-    open_commitments: list[CommitmentResponse]
+    open_commitments: list[CommitmentResponse] = Field(default_factory=list)
     stale: bool = Field(default=False, description="True if extraction is queued and state may be outdated")
     updated_at: datetime
 

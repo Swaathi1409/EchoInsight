@@ -158,12 +158,32 @@ def create_app() -> FastAPI:
         expose_headers=["X-Request-Id"],
     )
 
-    # Request ID and security headers middleware
+    # Request ID, security headers, and rate limiting middleware
+    from collections import defaultdict
+    _rate_window: dict = defaultdict(lambda: {"count": 0, "reset_at": 0.0})
+    RATE_LIMIT = 200  # requests per minute per IP
+
     @app.middleware("http")
     async def request_id_and_security_headers(request: Request, call_next):
         request_id = request.headers.get("X-Request-Id", str(uuid.uuid4()))
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)
+
+        # Rate limiting (skip for health/metrics)
+        if settings.is_production and not request.url.path.startswith(("/health", "/ready", "/metrics")):
+            ip = request.client.host if request.client else "unknown"
+            now = time.time()
+            window = _rate_window[ip]
+            if now > window["reset_at"]:
+                window["count"] = 0
+                window["reset_at"] = now + 60
+            window["count"] += 1
+            if window["count"] > RATE_LIMIT:
+                return JSONResponse(
+                    status_code=429,
+                    content={"code": "rate_limited", "message": "Too many requests"},
+                    headers={"Retry-After": "60"},
+                )
 
         start = time.perf_counter()
         response: Response = await call_next(request)
@@ -173,6 +193,20 @@ def create_app() -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        if settings.is_production:
+            csp = (
+                "default-src 'none'; "
+                "script-src 'self'; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                "font-src 'self' https://fonts.gstatic.com; "
+                "img-src 'self' data:; "
+                "connect-src 'self'; "
+                "frame-ancestors 'none';"
+            )
+            response.headers["Content-Security-Policy"] = csp
 
         logger.info(
             "request",
@@ -211,9 +245,17 @@ def create_app() -> FastAPI:
 
     from backend.api.auth import router as auth_router
     from backend.api.conversations import router as conv_router, analytics_router
+    from backend.api.metrics import router as metrics_router
+    from backend.api.admin import router as admin_router
+    from backend.api.stream import router as stream_router
+    from backend.api.cases import router as cases_router
     app.include_router(auth_router)
     app.include_router(conv_router)
     app.include_router(analytics_router)
+    app.include_router(metrics_router)
+    app.include_router(admin_router)
+    app.include_router(stream_router)
+    app.include_router(cases_router)
 
     return app
 

@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     llm_max_retries: int = 3
 
     # Database
-    database_url: str = "postgresql+asyncpg://echoinsight:changeme@localhost:5432/echoinsight"
+    database_url: str = "sqlite+aiosqlite:///./dev_local.db"
 
     # Application
     app_env: str = "development"
@@ -50,6 +50,11 @@ class Settings(BaseSettings):
 
     # Seed users (comma-separated username:password:role)
     seed_users: str = "admin:changeme_admin:admin"
+
+    # Verification thresholds (configurable without code changes)
+    qa_confidence_threshold: float = 0.75
+    qa_critical_items: list[str] = ["prohibited_promises", "identity_verification", "disclosure"]
+    qa_max_verification_items: int = 5
 
     @field_validator("app_env")
     @classmethod

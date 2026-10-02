@@ -15,7 +15,7 @@ Conversations router:
 """
 from __future__ import annotations
 import hashlib, logging, uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -31,7 +31,7 @@ from backend.domain_model import (
 from backend.ingest.assignment import assign, AGENT_NAMES, TEAM_NAMES
 from backend.ingest.redactor import redact_turn
 from backend.models import (
-    Agent, Analysis, Conversation, Job, QAResult, Team, Turn, User
+    Agent, Analysis, Conversation, Job, QAResult, Team, Turn, User, Commitment
 )
 from backend.schemas import (
     AppendTurnRequest, AppendTurnResponse, ConversationDetail,
@@ -86,12 +86,57 @@ async def create_conversation(
         agent_id=agent_id,
         team_id=team_id,
         channel=body.channel,
-        status=ConversationStatus.ACTIVE.value,
+        status=ConversationStatus.CREATED.value,
         synthetic_assignment=True,
+        case_id=body.case_id,
     )
     session.add(conv)
     await session.flush()
+    from backend.api.audit import audit_log
+    await audit_log(session, user_id=user.id, action="create_conversation",
+                    resource_type="conversation", resource_id=conv_id,
+                    details={"channel": body.channel, "source_id": body.source_id,
+                             "case_id": body.case_id})
     return _conv_summary(conv, 0)
+
+
+@router.patch("/{conv_id}/case", response_model=ConversationSummary)
+async def link_case(
+    conv_id: str,
+    case_id: str | None = None,
+    session=Depends(_db_session_dependency),
+    user: User = Depends(get_current_user),
+) -> ConversationSummary:
+    """Link or unlink this conversation to a case group."""
+    conv = await _get_or_404(conv_id, session, user)
+    conv.case_id = case_id
+    await session.flush()
+    tc = (await session.execute(
+        select(func.count(Turn.turn_id)).where(Turn.conversation_id == conv_id)
+    )).scalar_one()
+    return _conv_summary(conv, tc)
+
+
+@router.get("/cases/{case_id}", response_model=list[ConversationSummary])
+async def get_case(
+    case_id: str,
+    session=Depends(_db_session_dependency),
+    user: User = Depends(get_current_user),
+) -> list[ConversationSummary]:
+    """Get all conversations linked to a case_id."""
+    filters = _scope_filter(user)
+    q = select(Conversation).where(Conversation.case_id == case_id)
+    if filters:
+        q = q.where(*filters)
+    rows = (await session.execute(q)).scalars().all()
+    result = []
+    for c in rows:
+        tc = (await session.execute(
+            select(func.count(Turn.turn_id)).where(Turn.conversation_id == c.id)
+        )).scalar_one()
+        result.append(_conv_summary(c, tc))
+    return result
+
 
 
 @router.get("", response_model=list[ConversationSummary])
@@ -162,145 +207,6 @@ async def list_conversations(
     return summaries
 
 
-@router.get("/{conv_id}", response_model=ConversationDetail)
-async def get_conversation(
-    conv_id: str,
-    session=Depends(_db_session_dependency),
-    user: User = Depends(get_current_user),
-) -> ConversationDetail:
-    conv = await _get_or_404(conv_id, session, user)
-    turns_rows = (await session.execute(
-        select(Turn).where(Turn.conversation_id == conv_id).order_by(Turn.seq)
-    )).scalars().all()
-    turns = [_turn_resp(t) for t in turns_rows]
-
-    # Latest analysis
-    analysis_resp = None
-    an_row = (await session.execute(
-        select(Analysis).where(Analysis.conversation_id == conv_id)
-        .order_by(Analysis.version.desc()).limit(1)
-    )).scalar_one_or_none()
-    if an_row:
-        qa_row = (await session.execute(
-            select(QAResult).where(QAResult.analysis_id == an_row.analysis_id)
-        )).scalar_one_or_none()
-        analysis_resp = _analysis_resp(an_row, qa_row)
-
-    return ConversationDetail(
-        **_conv_summary(conv, len(turns)).__dict__,
-        turns=turns,
-        provisional_state=None,
-        analysis=analysis_resp,
-    )
-
-
-@router.post("/{conv_id}/turns", response_model=AppendTurnResponse, status_code=201)
-async def append_turn(
-    conv_id: str,
-    body: AppendTurnRequest,
-    response: Response,
-    session=Depends(_db_session_dependency),
-    user: User = Depends(get_current_user),
-) -> AppendTurnResponse:
-    conv = await _get_or_404(conv_id, session, user)
-    if conv.status == ConversationStatus.ENDED.value:
-        raise HTTPException(status_code=409, detail="Conversation has ended; no more turns can be appended")
-
-    # Idempotency check
-    existing = (await session.execute(
-        select(Turn).where(
-            Turn.conversation_id == conv_id,
-            Turn.idempotency_key == body.idempotency_key,
-        )
-    )).scalar_one_or_none()
-    if existing:
-        prov = conv.provisional_state_json or {}
-        response.status_code = 200  # idempotent replay
-        return _append_resp(existing, prov, prov.get("commitments", []))
-
-    # Redact
-    redacted = redact_turn(body.speaker.value, body.text)
-    content_hash = hashlib.sha256(redacted.encode()).hexdigest()
-
-    # Seq number
-    existing_turns = (await session.execute(
-        select(Turn).where(Turn.conversation_id == conv_id).order_by(Turn.seq.desc()).limit(1)
-    )).scalar_one_or_none()
-    seq = (existing_turns.seq + 1) if existing_turns else 1
-    turn_id = TURN_ID_FORMAT.format(seq=seq)
-
-    turn = Turn(
-        turn_id=turn_id,
-        conversation_id=conv_id,
-        seq=seq,
-        speaker=body.speaker.value,
-        timestamp=body.timestamp or datetime.now(timezone.utc),
-        text_redacted=redacted,
-        content_hash=content_hash,
-        idempotency_key=body.idempotency_key,
-        extraction_status=TurnExtractionStatus.PENDING.value,
-    )
-    session.add(turn)
-    await session.flush()
-
-    # Update provisional state synchronously with a lightweight (no-LLM) turn event.
-    # The full per-turn LLM extraction job updates this asynchronously.
-    current_state = conv.provisional_state_json or initial_state(conv_id)
-    # Minimal extraction — no LLM, just register the turn in state
-    lightweight_extraction = {
-        "resolution_update": "no_change",
-        "sentiment": "neutral",
-        "churn_signal": "none",
-        "new_commitments": [],
-        "completed_commitments": [],
-    }
-    updated_state = apply_turn_extraction(current_state, lightweight_extraction, turn_id, redacted)
-    updated_state["provisional"] = True
-    conv.provisional_state_json = updated_state
-    await session.flush()
-
-    # Enqueue per-turn extraction job (async LLM update)
-    job = Job(
-        job_id=str(uuid.uuid4()),
-        job_type=JobType.PER_TURN_EXTRACTION.value,
-        status=JobStatus.QUEUED.value,
-        conversation_id=conv_id,
-        idempotency_key=f"turn-extract-{turn_id}-{conv_id}",
-        payload_json={"turn_id": turn_id, "seq": seq},
-    )
-    session.add(job)
-    await session.flush()
-
-    commitments = updated_state.get("commitments", [])
-    return _append_resp(turn, updated_state, commitments)
-
-
-@router.post("/{conv_id}/end", status_code=202)
-async def end_conversation(
-    conv_id: str,
-    session=Depends(_db_session_dependency),
-    user: User = Depends(get_current_user),
-) -> dict:
-    conv = await _get_or_404(conv_id, session, user)
-    if conv.status == ConversationStatus.ENDED.value:
-        raise HTTPException(status_code=409, detail="Conversation is already ended")
-
-    conv.status = ConversationStatus.ENDED.value
-    conv.ended_at = datetime.now(timezone.utc)
-
-    job = Job(
-        job_id=str(uuid.uuid4()),
-        job_type=JobType.FINAL_ANALYSIS.value,
-        status=JobStatus.QUEUED.value,
-        conversation_id=conv_id,
-        idempotency_key=f"final-analysis-{conv_id}",
-        payload_json={},
-    )
-    session.add(job)
-    await session.flush()
-    return {"status": "ended", "conversation_id": conv_id, "job_id": job.job_id}
-
-
 @router.post("/submit", response_model=SubmitTranscriptResponse, status_code=202)
 async def submit_transcript(
     body: SubmitTranscriptRequest,
@@ -347,16 +253,327 @@ async def submit_transcript(
     return SubmitTranscriptResponse(conversation_id=conv_id, job_id=job.job_id)
 
 
-@router.get("/{conv_id}/analysis")
-async def get_analysis(conv_id: str, session=Depends(_db_session_dependency),
-                       user: User = Depends(get_current_user)) -> dict:
-    await _get_or_404(conv_id, session, user)
-    an = (await session.execute(
+
+@router.get("/open-commitments")
+async def open_commitments(
+    session=Depends(_db_session_dependency),
+    user: User = Depends(get_current_user),
+    limit: int = Query(50, le=200),
+    offset: int = 0,
+) -> list[dict]:
+    """Return conversations with open (non-completed) commitments at end."""
+    filters = _scope_filter(user)
+    q = select(Conversation).where(Conversation.status == ConversationStatus.ENDED.value)
+    if filters:
+        q = q.where(*filters)
+    q = q.order_by(Conversation.ended_at.desc()).offset(offset).limit(limit)
+    rows = (await session.execute(q)).scalars().all()
+    conv_ids = [c.id for c in rows]
+    
+    # Fetch final commitments for these conversations
+    final_coms_map = {}
+    if conv_ids:
+        from backend.models import Commitment
+        com_q = select(Commitment).where(
+            Commitment.conversation_id.in_(conv_ids),
+            Commitment.provisional == False,
+            Commitment.status.notin_(["completed", "cancelled"])
+        )
+        for c in (await session.execute(com_q)).scalars().all():
+            final_coms_map.setdefault(c.conversation_id, []).append(c)
+
+    result = []
+    for conv in rows:
+        open_c = []
+        if conv.id in final_coms_map:
+            open_c = [_commitment_resp(c) for c in final_coms_map[conv.id]]
+        else:
+            prov = conv.provisional_state_json or {}
+            open_c = prov.get("open_commitments", [])
+        
+        if open_c:
+            result.append({
+                "conversation_id": conv.id, "agent_id": conv.agent_id,
+                "team_id": conv.team_id, "ended_at": conv.ended_at.isoformat() if conv.ended_at else None,
+                "open_commitments": open_c,
+                "synthetic_assignment": conv.synthetic_assignment,
+            })
+    return result
+
+
+
+@router.get("/false-resolutions")
+async def false_resolutions(
+    session=Depends(_db_session_dependency),
+    user: User = Depends(get_current_user),
+    limit: int = Query(50, le=200),
+    offset: int = 0,
+) -> list[dict]:
+    """Return conversations flagged as false resolutions by the detector."""
+    filters = _scope_filter(user)
+    q = (select(Analysis)
+         .join(Conversation, Analysis.conversation_id == Conversation.id)
+         .where(Analysis.false_resolution == True))
+    if filters:
+        q = q.where(*filters)
+    q = q.order_by(Analysis.created_at.desc()).offset(offset).limit(limit)
+    rows = (await session.execute(q)).scalars().all()
+    return [{
+        "conversation_id": an.conversation_id, "analysis_id": an.analysis_id,
+        "version": an.version, "false_resolution_reason": an.false_resolution_reason,
+        "resolution": an.resolution, "created_at": an.created_at,
+    } for an in rows]
+
+
+
+@router.get("/{conv_id}", response_model=ConversationDetail)
+async def get_conversation(
+    conv_id: str,
+    session=Depends(_db_session_dependency),
+    user: User = Depends(get_current_user),
+) -> ConversationDetail:
+    conv = await _get_or_404(conv_id, session, user)
+    turns_rows = (await session.execute(
+        select(Turn).where(Turn.conversation_id == conv_id).order_by(Turn.seq)
+    )).scalars().all()
+    turns = [_turn_resp(t) for t in turns_rows]
+
+    # Latest analysis
+    analysis_resp = None
+    an_row = (await session.execute(
         select(Analysis).where(Analysis.conversation_id == conv_id)
         .order_by(Analysis.version.desc()).limit(1)
     )).scalar_one_or_none()
+    if an_row:
+        qa_row = (await session.execute(
+            select(QAResult).where(QAResult.analysis_id == an_row.analysis_id)
+        )).scalar_one_or_none()
+        com_rows = (await session.execute(
+            select(Commitment).where(Commitment.conversation_id == conv_id, Commitment.provisional == False)
+        )).scalars().all()
+        analysis_resp = _analysis_resp(an_row, qa_row, com_rows)
+
+    return ConversationDetail(
+        **_conv_summary(conv, len(turns)).__dict__,
+        turns=turns,
+        provisional_state=conv.provisional_state_json,
+        analysis=analysis_resp,
+    )
+
+
+@router.post("/{conv_id}/turns", response_model=AppendTurnResponse, status_code=201)
+async def append_turn(
+    conv_id: str,
+    body: AppendTurnRequest,
+    response: Response,
+    session=Depends(_db_session_dependency),
+    user: User = Depends(get_current_user),
+) -> AppendTurnResponse:
+    conv = await _get_or_404(conv_id, session, user)
+    if conv.status == ConversationStatus.CLOSED.value:
+        raise HTTPException(status_code=409, detail="Conversation is permanently closed")
+    if conv.status == ConversationStatus.ENDED.value:
+        raise HTTPException(status_code=409, detail="Conversation has ended; no more turns can be appended")
+
+    # Idempotency check
+    existing = (await session.execute(
+        select(Turn).where(
+            Turn.conversation_id == conv_id,
+            Turn.idempotency_key == body.idempotency_key,
+        )
+    )).scalar_one_or_none()
+    if existing:
+        prov = conv.provisional_state_json or {}
+        response.status_code = 200  # idempotent replay
+        return _append_resp(existing, prov, prov.get("commitments", []))
+
+    # Redact
+    redacted = redact_turn(body.speaker.value, body.text)
+    content_hash = hashlib.sha256(redacted.encode()).hexdigest()
+
+    # Seq number
+    existing_turns = (await session.execute(
+        select(Turn).where(Turn.conversation_id == conv_id).order_by(Turn.seq.desc()).limit(1)
+    )).scalar_one_or_none()
+    seq = (existing_turns.seq + 1) if existing_turns else 1
+    turn_id = TURN_ID_FORMAT.format(seq=seq)
+
+    turn = Turn(
+        turn_id=turn_id,
+        conversation_id=conv_id,
+        seq=seq,
+        speaker=body.speaker.value,
+        timestamp=body.timestamp or datetime.now(timezone.utc),
+        text_redacted=redacted,
+        content_hash=content_hash,
+        idempotency_key=body.idempotency_key,
+        extraction_status=TurnExtractionStatus.PENDING.value,
+    )
+    session.add(turn)
+    await session.flush()
+
+    # Activate conversation on first turn
+    if conv.status == ConversationStatus.CREATED.value:
+        conv.status = ConversationStatus.ACTIVE.value
+
+    # Try real per-turn LLM extraction (incremental mode).
+    # Falls back to neutral stub if LLM is unavailable/rate-limited.
+    # The turn is stored regardless; extraction_status reflects outcome.
+    current_state = conv.provisional_state_json or initial_state(conv_id)
+    try:
+        from backend.analysis.incremental import run_per_turn_extraction
+        updated_state, ok = await run_per_turn_extraction(
+            conv_id, turn_id, redacted, current_state, session
+        )
+        turn.extraction_status = (
+            TurnExtractionStatus.DONE.value if ok
+            else TurnExtractionStatus.FAILED.value
+        )
+    except Exception:
+        # Non-blocking: fall back to lightweight neutral update
+        lightweight_extraction = {
+            "resolution_update": "no_change",
+            "sentiment": "neutral",
+            "churn_signal": "none",
+            "new_commitments": [],
+            "completed_commitments": [],
+        }
+        updated_state = apply_turn_extraction(current_state, lightweight_extraction, turn_id, redacted)
+        turn.extraction_status = TurnExtractionStatus.FAILED.value
+
+    updated_state["provisional"] = True
+    conv.provisional_state_json = updated_state
+    await session.flush()
+
+    commitments = updated_state.get("commitments", [])
+    return _append_resp(turn, updated_state, commitments)
+
+
+@router.post("/{conv_id}/end", status_code=202)
+async def end_conversation(
+    conv_id: str,
+    session=Depends(_db_session_dependency),
+    user: User = Depends(get_current_user),
+) -> dict:
+    conv = await _get_or_404(conv_id, session, user)
+    if conv.status == ConversationStatus.CLOSED.value:
+        raise HTTPException(status_code=409, detail="Conversation is closed")
+    if conv.status == ConversationStatus.ENDED.value:
+        raise HTTPException(status_code=409, detail="Conversation is already ended")
+
+    conv.status = ConversationStatus.ENDED.value
+    conv.ended_at = datetime.now(timezone.utc)
+
+    job = Job(
+        job_id=str(uuid.uuid4()),
+        job_type=JobType.FINAL_ANALYSIS.value,
+        status=JobStatus.QUEUED.value,
+        conversation_id=conv_id,
+        idempotency_key=f"final-{conv_id}-{uuid.uuid4().hex[:8]}",
+        payload_json={},
+    )
+    session.add(job)
+    await session.flush()
+    from backend.api.audit import audit_log
+    await audit_log(session, user_id=user.id, action="end_conversation",
+                    resource_type="conversation", resource_id=conv_id,
+                    details={"job_id": job.job_id})
+    return {"status": "ended", "conversation_id": conv_id, "job_id": job.job_id}
+
+
+@router.post("/{conv_id}/close", status_code=200)
+async def close_conversation(
+    conv_id: str,
+    session=Depends(_db_session_dependency),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Permanently close a conversation. Supervisor or admin only."""
+    if user.role not in (UserRole.ADMIN.value, UserRole.SUPERVISOR.value):
+        raise HTTPException(status_code=403, detail="Supervisor or admin required to close")
+    conv = await _get_or_404(conv_id, session, user)
+    if conv.status == ConversationStatus.CLOSED.value:
+        raise HTTPException(status_code=409, detail="Conversation is already closed")
+    if conv.status != ConversationStatus.ENDED.value:
+        raise HTTPException(status_code=409, detail="Only ended conversations can be closed")
+
+    conv.status = ConversationStatus.CLOSED.value
+    await session.flush()
+    from backend.api.audit import audit_log
+    await audit_log(session, user_id=user.id, action="close_conversation",
+                    resource_type="conversation", resource_id=conv_id)
+    return {"status": "closed", "conversation_id": conv_id}
+
+
+@router.post("/{conv_id}/reopen", status_code=200)
+async def reopen_conversation(
+    conv_id: str,
+    session=Depends(_db_session_dependency),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Reopen an ended conversation. Supervisor or admin only.
+    Prior analysis is preserved at the current version number.
+    New turns will trigger incremental extraction and update provisional state.
+    """
+    if user.role not in (UserRole.ADMIN.value, UserRole.SUPERVISOR.value):
+        raise HTTPException(status_code=403, detail="Supervisor or admin required to reopen")
+    conv = await _get_or_404(conv_id, session, user)
+    if conv.status == ConversationStatus.CLOSED.value:
+        raise HTTPException(status_code=409, detail="Conversation is permanently closed")
+    if conv.status != ConversationStatus.ENDED.value:
+        raise HTTPException(status_code=409, detail="Only ended conversations can be reopened")
+
+    if conv.ended_at:
+        ended_t = conv.ended_at.replace(tzinfo=timezone.utc) if conv.ended_at.tzinfo is None else conv.ended_at
+        if datetime.now(timezone.utc) - ended_t > timedelta(hours=72):
+            conv.status = ConversationStatus.CLOSED.value
+            await session.flush()
+            raise HTTPException(status_code=409, detail="Resume window (72 hours) has expired. Conversation is now closed.")
+
+    from backend.models import Segment
+    last_turn = (await session.execute(
+        select(Turn.turn_id).where(Turn.conversation_id == conv_id).order_by(Turn.seq.desc()).limit(1)
+    )).scalar_one_or_none()
+    
+    seg = Segment(conversation_id=conv_id, reason="resume", start_turn_id=last_turn)
+    session.add(seg)
+
+    preserved_version = conv.analysis_version
+    conv.status = ConversationStatus.ACTIVE.value
+    conv.ended_at = None
+    await session.flush()
+
+    from backend.api.audit import audit_log
+    await audit_log(session, user_id=user.id, action="reopen_conversation",
+                    resource_type="conversation", resource_id=conv_id,
+                    details={"analysis_version_preserved": preserved_version})
+    return {
+        "status": "active",
+        "conversation_id": conv_id,
+        "analysis_version_preserved": preserved_version,
+        "message": "Conversation reopened. Prior analysis preserved. New turns update provisional state.",
+    }
+
+
+@router.get("/{conv_id}/analysis")
+async def get_analysis(
+    conv_id: str,
+    version: int | None = None,
+    session=Depends(_db_session_dependency),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Fetch analysis for a conversation.
+    Optional ?version= query param selects a specific version (default: latest).
+    """
+    await _get_or_404(conv_id, session, user)
+    q = select(Analysis).where(Analysis.conversation_id == conv_id)
+    if version is not None:
+        q = q.where(Analysis.version == version)
+    else:
+        q = q.order_by(Analysis.version.desc()).limit(1)
+    an = (await session.execute(q)).scalar_one_or_none()
     if an is None:
-        # Check if job is queued/running
         job = (await session.execute(
             select(Job).where(Job.conversation_id == conv_id,
                               Job.job_type == JobType.FINAL_ANALYSIS.value)
@@ -367,7 +584,34 @@ async def get_analysis(conv_id: str, session=Depends(_db_session_dependency),
     qa = (await session.execute(
         select(QAResult).where(QAResult.analysis_id == an.analysis_id)
     )).scalar_one_or_none()
-    return _analysis_resp(an, qa)
+    com_rows = (await session.execute(
+        select(Commitment).where(Commitment.conversation_id == conv_id, Commitment.provisional == False)
+    )).scalars().all()
+    return _analysis_resp(an, qa, com_rows)
+
+
+@router.get("/{conv_id}/analysis/versions")
+async def list_analysis_versions(
+    conv_id: str,
+    session=Depends(_db_session_dependency),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    """List all available analysis versions for a conversation (for version picker UI)."""
+    await _get_or_404(conv_id, session, user)
+    rows = (await session.execute(
+        select(Analysis.version, Analysis.created_at, Analysis.resolution, Analysis.provisional)
+        .where(Analysis.conversation_id == conv_id)
+        .order_by(Analysis.version.desc())
+    )).all()
+    return [
+        {
+            "version": r.version,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "resolution": r.resolution,
+            "provisional": r.provisional,
+        }
+        for r in rows
+    ]
 
 
 @router.get("/{conv_id}/jobs", response_model=list[JobResponse])
@@ -391,6 +635,39 @@ async def _get_or_404(conv_id: str, session: AsyncSession, user: User) -> Conver
         raise HTTPException(403, "Access denied")
     if user.role == UserRole.SUPERVISOR.value and conv.team_id != user.team_id:
         raise HTTPException(403, "Access denied")
+        
+    # Lazy idle timeout
+    if conv.status == ConversationStatus.ACTIVE.value:
+        from backend.models import Turn
+        last_turn = (await session.execute(
+            select(Turn.timestamp).where(Turn.conversation_id == conv_id).order_by(Turn.seq.desc()).limit(1)
+        )).scalar_one_or_none()
+        
+        now = datetime.now(timezone.utc)
+        if last_turn:
+            last_t = last_turn.replace(tzinfo=timezone.utc) if last_turn.tzinfo is None else last_turn
+            if (now - last_t) > timedelta(minutes=30):
+                conv.status = ConversationStatus.ENDED.value
+                conv.end_reason = "idle_timeout"
+                conv.ended_at = now
+            
+            job = Job(
+                job_id=str(uuid.uuid4()),
+                job_type=JobType.FINAL_ANALYSIS.value,
+                status=JobStatus.QUEUED.value,
+                conversation_id=conv_id,
+                idempotency_key=f"final-idle-{conv_id}-{uuid.uuid4().hex[:8]}",
+            )
+            session.add(job)
+            await session.flush()
+            
+    # Lazy resume window timeout
+    if conv.status == ConversationStatus.ENDED.value and conv.ended_at:
+        ended_t = conv.ended_at.replace(tzinfo=timezone.utc) if conv.ended_at.tzinfo is None else conv.ended_at
+        if (datetime.now(timezone.utc) - ended_t) > timedelta(hours=72):
+            conv.status = ConversationStatus.CLOSED.value
+            await session.flush()
+            
     return conv
 
 
@@ -408,6 +685,8 @@ def _conv_summary(
         end_reason=conv.end_reason, turn_count=turn_count,
         synthetic_assignment=conv.synthetic_assignment,
         analysis_version=conv.analysis_version,
+        case_id=conv.case_id if hasattr(conv, 'case_id') else None,
+        resumed_from=conv.resumed_from if hasattr(conv, 'resumed_from') else None,
         qa_score=qa_score,
         churn_risk=churn_risk,
         false_resolution=false_resolution,
@@ -428,12 +707,24 @@ def _append_resp(turn: Turn, state: dict, ledger: list) -> AppendTurnResponse:
         turn_id=turn.turn_id, seq=turn.seq, speaker=turn.speaker,
         text_redacted=turn.text_redacted,
         extraction_status=turn.extraction_status,
-        provisional_state=None,
+        provisional_state=state,
         ledger=ledger,
     )
 
 
-def _analysis_resp(an: Analysis, qa: QAResult | None) -> dict:
+def _commitment_resp(c: Commitment) -> dict:
+    return {
+        "commitment_id": c.commitment_id, "provisional": c.provisional,
+        "description": c.description, "owner": c.owner, "deadline": c.deadline,
+        "deadline_flag": c.deadline_flag, "status": c.status,
+        "created_at_turn_id": c.created_at_turn_id,
+        "completed_at_turn_id": c.completed_at_turn_id,
+        "carried_over": c.carried_over, "is_overdue": c.is_overdue if hasattr(c, 'is_overdue') else False,
+        "evidence": c.evidence_json,
+    }
+
+
+def _analysis_resp(an: Analysis, qa: QAResult | None, commitments: list[Commitment] | None = None) -> dict:
     d = {
         "analysis_id": an.analysis_id, "conversation_id": an.conversation_id,
         "version": an.version, "provisional": an.provisional, "model": an.model,
@@ -444,7 +735,7 @@ def _analysis_resp(an: Analysis, qa: QAResult | None) -> dict:
         "sentiment_trajectory": an.sentiment_trajectory_json,
         "false_resolution": an.false_resolution,
         "false_resolution_reason": an.false_resolution_reason,
-        "commitments": [], "created_at": an.created_at,
+        "commitments": [_commitment_resp(c) for c in (commitments or [])], "created_at": an.created_at,
         "qa_result": None,
     }
     if qa:
@@ -470,59 +761,7 @@ def _job_resp(j: Job) -> JobResponse:
 
 # ── Open Commitment Queue ────────────────────────────────────────────────────
 
-@router.get("/open-commitments")
-async def open_commitments(
-    session=Depends(_db_session_dependency),
-    user: User = Depends(get_current_user),
-    limit: int = Query(50, le=200),
-    offset: int = 0,
-) -> list[dict]:
-    """Return conversations with open (non-completed) commitments at end."""
-    filters = _scope_filter(user)
-    q = select(Conversation).where(Conversation.status == ConversationStatus.ENDED.value)
-    if filters:
-        q = q.where(*filters)
-    q = q.order_by(Conversation.ended_at.desc()).offset(offset).limit(limit)
-    rows = (await session.execute(q)).scalars().all()
-    result = []
-    for conv in rows:
-        prov = conv.provisional_state_json or {}
-        open_c = [c for c in prov.get("commitments", [])
-                  if c.get("status") not in ("completed", "cancelled")]
-        if open_c:
-            result.append({
-                "conversation_id": conv.id, "agent_id": conv.agent_id,
-                "team_id": conv.team_id, "ended_at": conv.ended_at.isoformat() if conv.ended_at else None,
-                "open_commitments": open_c,
-                "synthetic_assignment": conv.synthetic_assignment,
-            })
-    return result
-
-
 # ── False Resolution Queue ────────────────────────────────────────────────────
-
-@router.get("/false-resolutions")
-async def false_resolutions(
-    session=Depends(_db_session_dependency),
-    user: User = Depends(get_current_user),
-    limit: int = Query(50, le=200),
-    offset: int = 0,
-) -> list[dict]:
-    """Return conversations flagged as false resolutions by the detector."""
-    filters = _scope_filter(user)
-    q = (select(Analysis)
-         .join(Conversation, Analysis.conversation_id == Conversation.id)
-         .where(Analysis.false_resolution == True))
-    if filters:
-        q = q.where(*filters)
-    q = q.order_by(Analysis.created_at.desc()).offset(offset).limit(limit)
-    rows = (await session.execute(q)).scalars().all()
-    return [{
-        "conversation_id": an.conversation_id, "analysis_id": an.analysis_id,
-        "version": an.version, "false_resolution_reason": an.false_resolution_reason,
-        "resolution": an.resolution, "created_at": an.created_at,
-    } for an in rows]
-
 
 # ── Analytics ─────────────────────────────────────────────────────────────────
 
