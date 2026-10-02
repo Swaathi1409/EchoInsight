@@ -95,8 +95,6 @@ services:
   frontend:
     image: echoinsight-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
-    ports:
-      - "80:80"
     depends_on:
       api:
         condition: service_healthy
@@ -105,6 +103,28 @@ services:
         limits:
           memory: 128m
 
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - api
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
 volumes:
   pgdata:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local

@@ -1,89 +1,77 @@
-.PHONY: help install install-dev lint typecheck test test-unit test-integration test-fast \
-        migrate migrate-create run run-worker build up down clean eval \
-        seed-users secret-scan fetch-pool
+# EchoInsight — Makefile
+# Usage: make <target>
+.PHONY: help dev dev-backend dev-worker dev-frontend \
+        install install-dev seed test e2e lint \
+        build up down logs clean deploy
+
+PYTHON=python
+PIP=pip
 
 help:
-	@echo "EchoInsight - available targets:"
-	@echo "  install        Install production dependencies"
-	@echo "  install-dev    Install all development dependencies"
-	@echo "  lint           Run ruff linter"
-	@echo "  typecheck      Run mypy type checker"
-	@echo "  test           Run all tests"
-	@echo "  test-unit      Run unit tests only (no database, mock LLM)"
-	@echo "  test-fast      Run fast tests (unit + selected integration)"
-	@echo "  migrate        Apply all pending Alembic migrations"
-	@echo "  migrate-create Create a new migration (MSG=description)"
-	@echo "  run            Start development API server"
-	@echo "  run-worker     Start development worker process"
-	@echo "  build          Build Docker images"
-	@echo "  up             Start development Docker Compose stack"
-	@echo "  down           Stop Docker Compose stack"
-	@echo "  eval           Run evaluation suite (requires GROQ_API_KEY)"
-	@echo "  seed-users     Seed initial users from SEED_USERS env var"
-	@echo "  fetch-pool     Fetch analysis pool conversations from HuggingFace API"
-	@echo "  secret-scan    Run gitleaks secret scanner"
-	@echo "  clean          Remove build artifacts and caches"
+	@echo "EchoInsight targets:"
+	@echo "  make install        Install all dependencies"
+	@echo "  make seed           Seed database with users + demo conversations"
+	@echo "  make dev            Start all 3 services (backend + worker + frontend)"
+	@echo "  make test           Run unit + integration tests"
+	@echo "  make e2e            Run E2E API test suite"
+	@echo "  make lint           Run ruff + mypy"
+	@echo "  make build          Build Docker images"
+	@echo "  make up             Start full stack via docker compose"
+	@echo "  make down           Stop docker compose stack"
+	@echo "  make clean          Remove __pycache__, .pyc, dist"
 
 install:
-	pip install -r backend/requirements.txt
+	$(PIP) install -e "backend[dev]"
+	cd frontend && npm install
 
-install-dev:
-	pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+seed:
+	$(PYTHON) -m backend.scripts.seed_users
+	$(PYTHON) scripts/seed_demo.py
 
-lint:
-	cd backend && ruff check .
-	cd backend && ruff format --check .
+dev-backend:
+	uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
 
-typecheck:
-	cd backend && mypy . --ignore-missing-imports
+dev-worker:
+	$(PYTHON) -m backend.worker.main
+
+dev-frontend:
+	cd frontend && npm run dev
+
+# Parallel dev (Windows PowerShell — run in separate terminals)
+dev:
+	@echo "Start these in separate terminals:"
+	@echo "  make dev-backend"
+	@echo "  make dev-worker"
+	@echo "  make dev-frontend"
 
 test:
-	cd backend && pytest tests/ -v --tb=short
+	$(PYTHON) -m pytest tests/ -v --tb=short -x
 
-test-unit:
-	cd backend && pytest tests/unit/ -v --tb=short -m "not integration"
+e2e:
+	@echo "NOTE: Stop uvicorn --reload first, then run:"
+	@echo "  uvicorn backend.api.main:app"
+	$(PYTHON) scripts/e2e_test.py
 
-test-integration:
-	cd backend && pytest tests/integration/ -v --tb=short
-
-test-fast:
-	cd backend && pytest tests/unit/ tests/integration/test_ingest.py tests/integration/test_lifecycle.py -v --tb=short
-
-migrate:
-	cd backend && alembic upgrade head
-
-migrate-create:
-	cd backend && alembic revision --autogenerate -m "$(MSG)"
-
-run:
-	cd backend && uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
-
-run-worker:
-	cd backend && python -m worker.main
+lint:
+	ruff check backend/ --fix
+	mypy backend/ --ignore-missing-imports --no-strict-optional
 
 build:
 	docker compose build
 
 up:
 	docker compose up -d
+	@echo "Waiting for db..."
+	sleep 5
+	docker compose exec api python -m backend.scripts.seed_users
 
 down:
 	docker compose down
 
-eval:
-	cd backend && python -m evals.run
-
-seed-users:
-	cd backend && python -m scripts.seed_users
-
-fetch-pool:
-	cd backend && python -m data.scripts.fetch_conversations
-
-secret-scan:
-	gitleaks detect --source . --verbose
+logs:
+	docker compose logs -f
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -name "*.pyc" -delete 2>/dev/null || true
-	rm -rf backend/.mypy_cache backend/.ruff_cache backend/.pytest_cache
-	rm -rf frontend/dist frontend/node_modules 2>/dev/null || true
+	rm -rf frontend/dist frontend/.vite
