@@ -27,17 +27,26 @@ export const api = {
   login: (username, password) =>
     fetch(`${API}/api/v1/auth/login`, { method: 'POST', headers: headers(), body: JSON.stringify({ username, password }) }).then(handle),
 
-  getConversations: (limit = 50, offset = 0, status = '') => {
-    const qs = new URLSearchParams({ limit, offset });
-    if (status) qs.set('status', status);
+  // Conversations list with optional filters
+  getConversations: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.limit) qs.set('limit', params.limit);
+    if (params.offset) qs.set('offset', params.offset);
+    if (params.status) qs.set('status', params.status);
+    if (params.agent_id) qs.set('agent_id', params.agent_id);
+    if (params.team_id) qs.set('team_id', params.team_id);
+    if (params.search) qs.set('search', params.search);
     return fetch(`${API}/api/v1/conversations?${qs}`, { headers: headers() }).then(handle);
   },
 
   getConversation: (id) =>
     fetch(`${API}/api/v1/conversations/${id}`, { headers: headers() }).then(handle),
 
-  createConversation: (channel = 'call') =>
-    fetch(`${API}/api/v1/conversations`, { method: 'POST', headers: headers(), body: JSON.stringify({ channel }) }).then(handle),
+  createConversation: (channel = 'call', source_id = '') =>
+    fetch(`${API}/api/v1/conversations`, {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({ channel, source_id: source_id || undefined }),
+    }).then(handle),
 
   appendTurn: (convId, speaker, text, key) =>
     fetch(`${API}/api/v1/conversations/${convId}/turns`, {
@@ -47,6 +56,15 @@ export const api = {
 
   endConversation: (id) =>
     fetch(`${API}/api/v1/conversations/${id}/end`, { method: 'POST', headers: headers() }).then(handle),
+
+  closeConversation: (id) =>
+    fetch(`${API}/api/v1/conversations/${id}/close`, { method: 'POST', headers: headers() }).then(handle),
+
+  submitTranscript: (turns, channel = 'call', source_id = '') =>
+    fetch(`${API}/api/v1/conversations/submit`, {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({ turns, channel, source_id: source_id || undefined }),
+    }).then(handle),
 
   getJobs: (convId) =>
     fetch(`${API}/api/v1/conversations/${convId}/jobs`, { headers: headers() }).then(handle),
@@ -63,6 +81,50 @@ export const api = {
   getTeamAnalytics: (teamId) =>
     fetch(`${API}/api/v1/analytics/team/${teamId}`, { headers: headers() }).then(handle),
 
+  // Analytics aggregates for charts
+  getConversationStats: () =>
+    fetch(`${API}/api/v1/conversations?limit=500`, { headers: headers() }).then(handle),
+
+  // Analysis versioning
+  getAnalysis: (convId, version = null) => {
+    const qs = version != null ? `?version=${version}` : '';
+    return fetch(`${API}/api/v1/conversations/${convId}/analysis${qs}`, { headers: headers() }).then(handle);
+  },
+  getAnalysisVersions: (convId) =>
+    fetch(`${API}/api/v1/conversations/${convId}/analysis/versions`, { headers: headers() }).then(handle),
+
+  // Conversation resumption
+  reopenConversation: (convId) =>
+    fetch(`${API}/api/v1/conversations/${convId}/reopen`, { method: 'POST', headers: headers() }).then(handle),
+
+  // Reviewer workflow
+  createReview: (convId, verdict, notes, qaOverride = {}) =>
+    fetch(`${API}/api/v1/conversations/${convId}/reviews`, {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({ verdict, notes, qa_override: qaOverride }),
+    }).then(handle),
+  getReviews: (convId) =>
+    fetch(`${API}/api/v1/conversations/${convId}/reviews`, { headers: headers() }).then(handle),
+
+  // Admin: audit logs
+  getAuditLogs: (params = {}) => {
+    const qs = new URLSearchParams(params);
+    return fetch(`${API}/api/v1/audit-logs?${qs}`, { headers: headers() }).then(handle);
+  },
+
+  // Admin: checklists
+  getChecklists: () =>
+    fetch(`${API}/api/v1/checklists`, { headers: headers() }).then(handle),
+  getChecklist: (version) =>
+    fetch(`${API}/api/v1/checklists/${version}`, { headers: headers() }).then(handle),
+  createChecklist: (body) =>
+    fetch(`${API}/api/v1/checklists`, { method: 'POST', headers: headers(), body: JSON.stringify(body) }).then(handle),
+
+  // Budget status
+  getBudgetStatus: () =>
+    fetch(`${API}/budget-status`, { headers: headers() }).then(handle),
+
   health: () => fetch(`${API}/health`).then(handle),
   ready: () => fetch(`${API}/ready`).then(handle),
+  metrics: () => fetch(`${API}/metrics`).then(r => r.text()),
 };

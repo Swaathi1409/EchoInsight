@@ -4,6 +4,7 @@ import {
   ArrowLeft, User, Headphones, CheckCircle, XCircle,
   AlertTriangle, Clock, Shield, ChevronDown, ChevronRight, RefreshCw,
 } from 'lucide-react';
+import LiveAppendPanel from './LiveAppendPanel';
 
 const SENTIMENT_COLOR = {
   positive: 'var(--green)', neutral: 'var(--text-muted)',
@@ -11,26 +12,37 @@ const SENTIMENT_COLOR = {
 };
 
 function SentimentDot({ s }) {
-  return <span className={`sentiment-dot sentiment-${s}`} title={s} />;
+  return <span style={{ width: 8, height: 8, borderRadius: '50%', background: SENTIMENT_COLOR[s] || 'var(--text-muted)', display: 'inline-block', flexShrink: 0 }} title={s} />;
 }
 
 function QAItem({ item }) {
   const [open, setOpen] = useState(false);
-  const icons = { pass: <CheckCircle size={14} color="var(--green)" />, fail: <XCircle size={14} color="var(--red)" />, not_applicable: <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>N/A</span>, needs_review: <AlertTriangle size={14} color="var(--amber)" /> };
+  const icons = {
+    pass: <CheckCircle size={14} color="var(--green)" />,
+    fail: <XCircle size={14} color="var(--red)" />,
+    not_applicable: <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>N/A</span>,
+    needs_review: <AlertTriangle size={14} color="var(--amber)" />,
+  };
   return (
     <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 10, marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => setOpen(o => !o)}>
         {icons[item.result] || icons.needs_review}
-        <span style={{ flex: 1, fontSize: 13 }}>{item.item_id?.replace(/_/g, ' ')}</span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{(item.confidence * 100).toFixed(0)}%</span>
+        <span style={{ flex: 1, fontSize: 13 }}>{(item.display || item.item_id)?.replace(/_/g, ' ')}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{((item.confidence || 0) * 100).toFixed(0)}%</span>
+        {item.verification_result && (
+          <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3,
+            background: item.verification_result === 'supported' ? 'var(--green-bg)' : item.verification_result === 'not_supported' ? 'var(--red-bg)' : 'var(--amber-bg)',
+            color: item.verification_result === 'supported' ? 'var(--green)' : item.verification_result === 'not_supported' ? 'var(--red)' : 'var(--amber)',
+          }}>verified: {item.verification_result}</span>
+        )}
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </div>
       {open && (
         <div style={{ marginTop: 8, paddingLeft: 24 }}>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>{item.explanation}</p>
-          {item.quote && (
+          {(item.quote || (item.evidence || []).map(e => e.quote).join(' ')) && (
             <blockquote style={{ borderLeft: '2px solid var(--accent)', paddingLeft: 10, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              "{item.quote}"
+              "{item.quote || (item.evidence || []).map(e => e.quote).join(' | ')}"
             </blockquote>
           )}
           {item.finding_type && <span className="badge badge-red" style={{ marginTop: 6 }}>{item.finding_type}</span>}
@@ -41,13 +53,76 @@ function QAItem({ item }) {
   );
 }
 
+function SentimentTimeline({ trajectory }) {
+  if (!trajectory || trajectory.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap', padding: '8px 0' }}>
+      {trajectory.map((pt, i) => (
+        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          <SentimentDot s={pt.sentiment} />
+          <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{pt.turn_id?.replace('turn_', '')}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CommitmentLedger({ commitments }) {
+  if (!commitments || commitments.length === 0) return (
+    <p style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No commitments recorded.</p>
+  );
+  const statusColors = {
+    proposed: 'badge-amber', accepted: 'badge-blue', scheduled: 'badge-blue',
+    completed: 'badge-green', cancelled: 'badge-gray', uncertain: 'badge-amber',
+  };
+  return (
+    <div>
+      {commitments.map((c, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+          <span className={`badge ${statusColors[c.status] || 'badge-gray'}`}>{c.status}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-primary)', marginBottom: 2 }}>{c.description}</div>
+            <div style={{ display: 'flex', gap: 10, fontSize: 11, color: 'var(--text-muted)' }}>
+              {c.owner && <span>Owner: {c.owner}</span>}
+              {c.deadline && <span style={{ color: 'var(--amber)' }}>Due: {c.deadline}</span>}
+              {c.created_at_turn_id && <span>Created at: {c.created_at_turn_id}</span>}
+            </div>
+            {(c.evidence_json || []).map((ev, ei) => ev.quote && (
+              <blockquote key={ei} style={{ borderLeft: '2px solid var(--border-subtle)', paddingLeft: 8, fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', margin: '4px 0' }}>
+                "{ev.quote}"
+              </blockquote>
+            ))}
+          </div>
+          {c.provisional && <span className="badge badge-amber" style={{ fontSize: 10 }}>provisional</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ConversationDetail({ convId }) {
   const [conv, setConv] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState('transcript');
+  const [highlightTurn, setHighlightTurn] = useState(null);
 
-  const load = async (silent = false) => {
+  // Version picker
+  const [versions, setVersions] = useState([]);
+  const [selectedVersion, setSelectedVersion] = useState(null);
+  const [versionAnalysis, setVersionAnalysis] = useState(null);
+
+  // Reviewer workflow
+  const [reviews, setReviews] = useState([]);
+  const [reviewVerdict, setReviewVerdict] = useState('approved');
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewMsg, setReviewMsg] = useState('');
+  const [reopening, setReopening] = useState(false);
+  const [ending, setEnding] = useState(false);
+
+  const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
@@ -60,18 +135,31 @@ export default function ConversationDetail({ convId }) {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [convId]);
 
-  useEffect(() => { load(); }, [convId]);
+  useEffect(() => { load(); }, [load]);
 
-  // Auto-refresh every 15s if conv is ended but has no analysis yet (job still running)
+  // Load analysis versions when conv is ended
+  useEffect(() => {
+    if (!conv || conv.status !== 'ended') return;
+    api.getAnalysisVersions(convId).then(setVersions).catch(() => {});
+    api.getReviews(convId).then(setReviews).catch(() => {});
+  }, [conv, convId]);
+
+  // Load specific version when selected
+  useEffect(() => {
+    if (selectedVersion == null) { setVersionAnalysis(null); return; }
+    api.getAnalysis(convId, selectedVersion).then(setVersionAnalysis).catch(() => setVersionAnalysis(null));
+  }, [selectedVersion, convId]);
+
+  // Auto-refresh if ended but analysis pending
   useEffect(() => {
     if (!conv) return;
     if (conv.status === 'ended' && !conv.analysis) {
       const t = setInterval(() => load(true), 15000);
       return () => clearInterval(t);
     }
-  }, [conv]);
+  }, [conv, load]);
 
   if (loading) return <div className="page"><div className="skeleton" style={{ height: 200 }} /></div>;
   if (error) return <div className="page"><div className="error-banner">{error}</div></div>;
@@ -80,22 +168,94 @@ export default function ConversationDetail({ convId }) {
   const analysis = conv.analysis;
   const qa = analysis?.qa_result;
   const scoreColor = !qa?.score ? 'var(--text-muted)' : qa.score >= 80 ? 'var(--green)' : qa.score >= 60 ? 'var(--amber)' : 'var(--red)';
+  const isActive = conv.status === 'active' || conv.status === 'created';
 
+  const scrollToTurn = (turnId) => {
+    setHighlightTurn(turnId);
+    setActiveTab('transcript');
+    setTimeout(() => {
+      const el = document.getElementById(`turn-${turnId}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => setHighlightTurn(null), 2500);
+    }, 100);
+  };
+
+  const TABS = [
+    ['transcript', 'Transcript'],
+    ...(isActive ? [['live', 'Live Panel']] : []),
+    ['analysis', 'Analysis'],
+    ['qa', 'QA'],
+    ['commitments', 'Commitments'],
+    ...(!isActive ? [['reviewer', 'Reviewer']] : []),
+  ];
+
+  const handleReopen = async () => {
+    if (!confirm('Reopen this conversation? Prior analysis will be preserved.')) return;
+    setReopening(true);
+    try {
+      await api.reopenConversation(convId);
+      await load();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setReopening(false);
+    }
+  };
+
+  const handleEnd = async () => {
+    if (!confirm('End this conversation and queue analysis?')) return;
+    setEnding(true);
+    try {
+      await api.endConversation(convId);
+      await load();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setEnding(false);
+    }
+  };
+
+  const handleClose = async () => {
+    if (!confirm('Permanently close this conversation? It will no longer be possible to reopen it.')) return;
+    try {
+      await api.closeConversation(convId);
+      await load();
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  const submitReview = async () => {
+    setReviewSubmitting(true);
+    setReviewMsg('');
+    try {
+      await api.createReview(convId, reviewVerdict, reviewNotes);
+      setReviewMsg('Review submitted.');
+      setReviewNotes('');
+      const updated = await api.getReviews(convId);
+      setReviews(updated);
+    } catch (e) {
+      setReviewMsg(`Error: ${e.message}`);
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
 
   return (
     <div className="page">
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <button className="btn btn-ghost btn-sm" onClick={() => { window.location.hash = '#/'; }}>
+        <button className="btn btn-ghost btn-sm" onClick={() => { window.location.hash = '#/?tab=conversations'; }}>
           <ArrowLeft size={14} /> Back
         </button>
         <div style={{ flex: 1 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
             Conversation <code style={{ fontSize: 14, background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>{conv.id.slice(0, 8)}</code>
           </h2>
           <div style={{ display: 'flex', gap: 10, marginTop: 4, alignItems: 'center' }}>
-            <span className={`badge ${conv.status === 'ended' ? 'badge-green' : 'badge-amber'}`}>{conv.status}</span>
+            <span className={`badge ${conv.status === 'ended' ? 'badge-green' : conv.status === 'active' ? 'badge-amber' : conv.status === 'closed' ? 'badge-gray' : 'badge-blue'}`}>{conv.status}</span>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{conv.turn_count} turns</span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{new Date(conv.started_at).toLocaleString()}</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{conv.started_at ? new Date(conv.started_at).toLocaleString() : ''}</span>
             {conv.synthetic_assignment && <span className="synthetic-label">Synthetic Assignment</span>}
           </div>
         </div>
@@ -104,15 +264,60 @@ export default function ConversationDetail({ convId }) {
           <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
           {refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
+        {conv.status === 'ended' && (
+          <>
+            <button className="btn btn-ghost btn-sm" onClick={handleReopen} disabled={reopening}
+              style={{ color: 'var(--amber)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {reopening ? 'Reopening…' : 'Reopen'}
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={handleClose}
+              style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              Close
+            </button>
+          </>
+        )}
+        {conv.status === 'active' && (
+          <button className="btn btn-ghost btn-sm" onClick={handleEnd} disabled={ending}
+            style={{ color: 'var(--red)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {ending ? 'Ending…' : 'End Conversation'}
+          </button>
+        )}
+        {versions.length > 1 && (
+          <select value={selectedVersion ?? ''} onChange={e => setSelectedVersion(e.target.value ? Number(e.target.value) : null)}
+            title="Select analysis version"
+            style={{ fontSize: 12, background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '4px 8px', color: 'var(--text-primary)' }}>
+            <option value="">Latest (v{versions[0]?.version})</option>
+            {versions.map(v => (
+              <option key={v.version} value={v.version}>v{v.version} — {v.resolution} {v.provisional ? '(provisional)' : ''}</option>
+            ))}
+          </select>
+        )}
       </div>
 
-      <div className="grid-2" style={{ marginBottom: 16 }}>
-        {/* Transcript */}
-        <div className="card" style={{ maxHeight: 520, overflowY: 'auto' }}>
-          <div className="card-header"><span className="card-title">Transcript</span></div>
+      {/* Sub-tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border-subtle)' }}>
+        {TABS.map(([id, label]) => (
+          <button key={id} onClick={() => setActiveTab(id)}
+            style={{
+              padding: '7px 14px', fontSize: 13, fontWeight: activeTab === id ? 700 : 400,
+              color: activeTab === id ? 'var(--accent)' : 'var(--text-muted)',
+              background: 'none', border: 'none',
+              borderBottom: activeTab === id ? '2px solid var(--accent)' : '2px solid transparent',
+              cursor: 'pointer', marginBottom: -1,
+            }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ---- TRANSCRIPT TAB ---- */}
+      {activeTab === 'transcript' && (
+        <div className="card" style={{ maxHeight: 620, overflowY: 'auto' }}>
           <div className="transcript">
-            {conv.turns.map(t => (
-              <div key={t.turn_id} className={`turn turn-${t.speaker}`}>
+            {(conv.turns || []).map(t => (
+              <div key={t.turn_id} id={`turn-${t.turn_id}`}
+                className={`turn turn-${t.speaker}`}
+                style={{ outline: highlightTurn === t.turn_id ? '2px solid var(--accent)' : 'none', borderRadius: 6, transition: 'outline 0.2s' }}>
                 <div className="turn-avatar">
                   {t.speaker === 'agent' ? <Headphones size={12} /> : <User size={12} />}
                 </div>
@@ -126,95 +331,204 @@ export default function ConversationDetail({ convId }) {
                 </div>
               </div>
             ))}
+            {(conv.turns || []).length === 0 && (
+              <p style={{ color: 'var(--text-muted)', fontSize: 13, padding: 20, textAlign: 'center' }}>No turns yet.</p>
+            )}
           </div>
         </div>
+      )}
 
-        {/* Analysis Panel */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Summary */}
-          {analysis ? (
-            <>
-              <div className="card">
-                <div className="card-header"><span className="card-title">Analysis</span>
-                  <span className={`badge ${analysis.provisional ? 'badge-amber' : 'badge-green'}`}>
-                    {analysis.provisional ? 'Provisional' : `v${analysis.version}`}
+      {/* ---- LIVE PANEL TAB ---- */}
+      {activeTab === 'live' && isActive && (
+        <LiveAppendPanel conv={conv} onTurnAdded={() => load(true)} />
+      )}
+
+      {/* ---- ANALYSIS TAB ---- */}
+      {activeTab === 'analysis' && (() => {
+        const displayAnalysis = versionAnalysis || analysis;
+        return displayAnalysis ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {selectedVersion != null && (
+              <div className="card" style={{ padding: '8px 14px', background: 'var(--amber-bg)', borderRadius: 6 }}>
+                <span style={{ fontSize: 12, color: 'var(--amber)' }}>Viewing historical version v{selectedVersion}. Select "Latest" to return to current analysis.</span>
+              </div>
+            )}
+            {/* Summary */}
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">Analysis</span>
+                <span className={`badge ${displayAnalysis.provisional ? 'badge-amber' : 'badge-green'}`}>
+                  {displayAnalysis.provisional ? 'Provisional' : `v${displayAnalysis.version}`}
+                </span>
+              </div>
+              <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)', marginBottom: 12 }}>{analysis.summary}</p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                {(analysis.reasons || []).map(r => <span key={r} className="badge badge-blue">{r.replace(/_/g, ' ')}</span>)}
+              </div>
+              <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>RESOLUTION</div>
+                  <span className={`badge ${analysis.resolution === 'resolved' ? 'badge-green' : analysis.resolution === 'unresolved' ? 'badge-red' : 'badge-amber'}`}>
+                    {analysis.resolution?.replace(/_/g, ' ')}
                   </span>
                 </div>
-                <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)', marginBottom: 12 }}>{analysis.summary}</p>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                  {analysis.reasons.map(r => <span key={r} className="badge badge-blue">{r.replace(/_/g, ' ')}</span>)}
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>CHURN RISK</div>
+                  <span className={`badge ${analysis.churn_risk === 'high' ? 'badge-red' : analysis.churn_risk === 'medium' ? 'badge-amber' : 'badge-green'}`}>
+                    {analysis.churn_risk} risk
+                  </span>
                 </div>
-                <div style={{ display: 'flex', gap: 16 }}>
+                {analysis.false_resolution && (
                   <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>RESOLUTION</div>
-                    <ResolutionBadge r={analysis.resolution} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>CHURN RISK</div>
-                    <ChurnBadge r={analysis.churn_risk} />
-                  </div>
-                  {analysis.false_resolution && (
-                    <div><div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>FALSE RESOLUTION</div>
-                      <span className="badge badge-red"><AlertTriangle size={10} /> Detected</span></div>
-                  )}
-                </div>
-                {analysis.churn_signals?.length > 0 && (
-                  <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--red-bg)', borderRadius: 6 }}>
-                    <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600, marginBottom: 4 }}>Churn Signals</div>
-                    {analysis.churn_signals.map((s, i) => <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)' }}>• {s}</div>)}
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>FALSE RESOLUTION</div>
+                    <span className="badge badge-red"><AlertTriangle size={10} /> Detected</span>
                   </div>
                 )}
               </div>
-
-              {/* QA Result */}
-              {qa && (
-                <div className="card">
-                  <div className="card-header">
-                    <span className="card-title">QA Score</span>
-                    {qa.critical_violation && <span className="badge badge-red"><Shield size={10} /> Critical Violation</span>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 16 }}>
-                    <div className="score-circle" style={{ background: `${scoreColor}22`, color: scoreColor }}>
-                      {qa.score != null ? `${qa.score}` : '—'}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div className="qa-bar-wrap">
-                        <div className="qa-bar">
-                          <div className="qa-bar-fill" style={{ width: `${(qa.coverage * 100).toFixed(0)}%`, background: qa.coverage >= 0.7 ? 'var(--green)' : 'var(--amber)' }} />
-                        </div>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                          {(qa.coverage * 100).toFixed(0)}% coverage
-                        </span>
-                      </div>
-                      {qa.score_label === 'partial' && (
-                        <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 4 }}>Score is partial — coverage below 70%</div>
-                      )}
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                        {qa.items_assessed}/{qa.items_applicable} items assessed · {qa.items_needs_review} needs review
-                      </div>
-                    </div>
-                  </div>
-                  {qa.items?.map(item => <QAItem key={item.item_id} item={item} />)}
+              {(analysis.churn_signals || []).length > 0 && (
+                <div style={{ padding: '8px 12px', background: 'var(--red-bg)', borderRadius: 6 }}>
+                  <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600, marginBottom: 4 }}>Churn Signals</div>
+                  {analysis.churn_signals.map((s, i) => <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)' }}>• {s}</div>)}
                 </div>
               )}
-            </>
-          ) : (
-            <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-              <Clock size={24} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
-              <p style={{ color: 'var(--text-muted)', marginBottom: 12 }}>
-                {conv.status === 'ended'
-                  ? 'Analysis is being processed by the background worker…'
-                  : 'Analysis will be available after the conversation ends.'}
-              </p>
-              {conv.status === 'ended' && (
-                <button className="btn btn-ghost btn-sm" onClick={() => load(true)} disabled={refreshing}>
-                  {refreshing ? 'Checking…' : 'Check again'}
-                </button>
-              )}
             </div>
-          )}
+
+            {/* Sentiment timeline */}
+            {(analysis.sentiment_trajectory || []).length > 0 && (
+              <div className="card">
+                <div className="card-header"><span className="card-title">Sentiment Trajectory</span></div>
+                <SentimentTimeline trajectory={analysis.sentiment_trajectory} />
+                <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                  {Object.entries(SENTIMENT_COLOR).map(([s, c]) => (
+                    <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: c, display: 'inline-block' }} />
+                      {s}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {displayAnalysis.false_resolution && (
+              <div style={{ padding: '12px 16px', background: 'var(--red-bg)', borderRadius: 8, border: '1px solid var(--red)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <AlertTriangle size={16} color="var(--red)" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <div style={{ fontWeight: 700, color: 'var(--red)', fontSize: 13, marginBottom: 4 }}>False Resolution Detected</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{displayAnalysis.false_resolution_reason}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="card" style={{ textAlign: 'center', padding: 40 }}>
+            <Clock size={24} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
+            <p style={{ color: 'var(--text-muted)', marginBottom: 12 }}>
+              {conv.status === 'ended' ? 'Analysis is being processed…' : 'Analysis available after conversation ends.'}
+            </p>
+            {conv.status === 'ended' && (
+              <button className="btn btn-ghost btn-sm" onClick={() => load(true)} disabled={refreshing}>
+                {refreshing ? 'Checking…' : 'Check again'}
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ---- QA TAB ---- */}
+      {activeTab === 'qa' && (
+        qa ? (
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">QA Score</span>
+              {qa.critical_violation && <span className="badge badge-red"><Shield size={10} /> Critical Violation</span>}
+              {qa.score_label === 'partial' && <span className="badge badge-amber">Partial Coverage</span>}
+            </div>
+            <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 16 }}>
+              <div className="score-circle" style={{ background: `${scoreColor}22`, color: scoreColor }}>
+                {qa.score != null ? `${qa.score}` : '—'}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div className="qa-bar-wrap">
+                  <div className="qa-bar">
+                    <div className="qa-bar-fill" style={{ width: `${((qa.coverage || 0) * 100).toFixed(0)}%`, background: (qa.coverage || 0) >= 0.7 ? 'var(--green)' : 'var(--amber)' }} />
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                    {((qa.coverage || 0) * 100).toFixed(0)}% coverage
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  {qa.items_assessed}/{qa.items_applicable} assessed · {qa.items_needs_review} needs review
+                </div>
+              </div>
+            </div>
+            {(qa.items || []).map(item => (
+              <QAItem key={item.item_id} item={item} />
+            ))}
+          </div>
+        ) : (
+          <div className="card" style={{ textAlign: 'center', padding: 40 }}>
+            <p style={{ color: 'var(--text-muted)' }}>QA results available after final analysis.</p>
+          </div>
+        )
+      )}
+
+      {/* ---- COMMITMENTS TAB ---- */}
+      {activeTab === 'commitments' && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Commitment Ledger</span>
+            {analysis ? (
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>From final analysis</span>
+            ) : (
+              <span style={{ fontSize: 12, color: 'var(--amber)' }}>Provisional</span>
+            )}
+          </div>
+          <CommitmentLedger commitments={analysis?.commitments || conv.provisional_state?.open_commitments || []} />
         </div>
-      </div>
+      )}
+
+      {/* ---- REVIEWER TAB ---- */}
+      {activeTab === 'reviewer' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Submit review */}
+          <div className="card">
+            <div className="card-header"><span className="card-title">Submit Review</span></div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Verdict</label>
+              <select value={reviewVerdict} onChange={e => setReviewVerdict(e.target.value)}
+                style={{ fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '5px 10px', color: 'var(--text-primary)' }}>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="needs_rework">Needs Rework</option>
+              </select>
+            </div>
+            <textarea value={reviewNotes} onChange={e => setReviewNotes(e.target.value)}
+              placeholder="Notes (optional)…"
+              rows={3}
+              style={{ width: '100%', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '8px 10px', color: 'var(--text-primary)', resize: 'vertical', boxSizing: 'border-box', marginBottom: 10 }} />
+            <button className="btn btn-primary btn-sm" onClick={submitReview} disabled={reviewSubmitting}>
+              {reviewSubmitting ? 'Submitting…' : 'Submit Review'}
+            </button>
+            {reviewMsg && <span style={{ marginLeft: 12, fontSize: 12, color: reviewMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{reviewMsg}</span>}
+          </div>
+
+          {/* Review history */}
+          <div className="card">
+            <div className="card-header"><span className="card-title">Review History</span><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{reviews.length} reviews</span></div>
+            {reviews.length === 0 ? (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>No reviews yet.</p>
+            ) : reviews.map(r => (
+              <div key={r.review_id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span className={`badge ${r.verdict === 'approved' ? 'badge-green' : r.verdict === 'rejected' ? 'badge-red' : 'badge-amber'}`}>{r.verdict}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(r.created_at).toLocaleString()}</span>
+                </div>
+                {r.notes && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>{r.notes}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -222,9 +536,4 @@ export default function ConversationDetail({ convId }) {
 function ResolutionBadge({ r }) {
   const map = { resolved: 'badge-green', partially_resolved: 'badge-amber', unresolved: 'badge-red', pending: 'badge-amber', escalated: 'badge-purple', unknown: 'badge-gray' };
   return <span className={`badge ${map[r] || 'badge-gray'}`}>{r?.replace(/_/g, ' ')}</span>;
-}
-
-function ChurnBadge({ r }) {
-  const map = { low: 'badge-green', medium: 'badge-amber', high: 'badge-red' };
-  return <span className={`badge ${map[r] || 'badge-gray'}`}>{r} risk</span>;
 }

@@ -1,19 +1,37 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '../api';
-import { Send, Plus, PhoneOff, Mic } from 'lucide-react';
+import { Send, Plus, PhoneOff, Mic, ExternalLink, Trash2 } from 'lucide-react';
 
 let _idKey = 0;
 const nextKey = () => `demo-${Date.now()}-${++_idKey}`;
 
+const STORAGE_KEY = 'echoinsight_demo_session';
+
+function loadSession() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch { return null; }
+}
+function saveSession(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+function clearSession() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
 export default function LiveDemo() {
-  const [convId, setConvId] = useState(null);
-  const [turns, setTurns] = useState([]);
+  const saved = loadSession();
+  const [convId, setConvId] = useState(saved?.convId || null);
+  const [turns, setTurns] = useState(saved?.turns || []);
   const [speaker, setSpeaker] = useState('agent');
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [ended, setEnded] = useState(false);
-  const [msg, setMsg] = useState('');
-  const [jobId, setJobId] = useState(null);
+  const [ended, setEnded] = useState(saved?.ended || false);
+  const [msg, setMsg] = useState(saved?.convId ? `Session restored: ${saved.convId.slice(0,8)}` : '');
+  const [jobId, setJobId] = useState(saved?.jobId || null);
+
+  // Persist to localStorage whenever key state changes
+  useEffect(() => {
+    if (convId) saveSession({ convId, turns, ended, jobId });
+  }, [convId, turns, ended, jobId]);
 
   const createConv = async () => {
     setLoading(true); setMsg('');
@@ -23,9 +41,14 @@ export default function LiveDemo() {
       setTurns([]);
       setEnded(false);
       setJobId(null);
-      setMsg(`Conversation created: ${c.id.slice(0, 8)}`);
+      setMsg(`Conversation started: ${c.id.slice(0, 8)}`);
     } catch (e) { setMsg(`Error: ${e.message}`); }
     finally { setLoading(false); }
+  };
+
+  const resetSession = () => {
+    clearSession();
+    setConvId(null); setTurns([]); setEnded(false); setJobId(null); setMsg('Session cleared.');
   };
 
   const appendTurn = async () => {
@@ -89,23 +112,32 @@ export default function LiveDemo() {
         {/* Controls */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="card">
-            <div className="card-header"><span className="card-title">Session</span></div>
+            <div className="card-header"><span className="card-title">Session</span>
+              {convId && <button className="btn btn-ghost btn-sm" onClick={resetSession} style={{ color: 'var(--red)', fontSize: 11 }} title="Clear session"><Trash2 size={11} /> Clear</button>}
+            </div>
             <button className="btn btn-primary" onClick={createConv} disabled={loading} style={{ marginBottom: 12 }}>
-              <Plus size={14} /> New Conversation
+              <Plus size={14} /> {convId ? 'New Conversation' : 'Start Conversation'}
             </button>
             {convId && (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, fontFamily: 'monospace', padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 4 }}>
-                {convId}
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontFamily: 'monospace', padding: '5px 8px', background: 'var(--bg-secondary)', borderRadius: 4, wordBreak: 'break-all' }}>
+                ID: {convId}
+                <span className={`badge ${ended ? 'badge-green' : 'badge-amber'}`} style={{ marginLeft: 8 }}>{ended ? 'ended' : 'active'}</span>
               </div>
             )}
             {convId && !ended && (
-              <button className="btn btn-ghost" style={{ borderColor: 'var(--red)', color: 'var(--red)' }} onClick={endConv} disabled={loading}>
+              <button className="btn btn-ghost" style={{ borderColor: 'var(--red)', color: 'var(--red)', marginBottom: 8 }} onClick={endConv} disabled={loading}>
                 <PhoneOff size={14} /> End Conversation
               </button>
             )}
+            {convId && (
+              <button className="btn btn-ghost btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                onClick={() => { window.location.hash = `#/conversation/${convId}`; }}>
+                <ExternalLink size={12} /> View in Dashboard
+              </button>
+            )}
             {jobId && (
-              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--amber)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                Analysis queued. <button className="btn btn-ghost btn-sm" onClick={() => { window.location.hash = `#/conversation/${convId}`; }}>View</button>
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--amber)' }}>
+                Analysis queued — check the conversation page in ~30s
               </div>
             )}
           </div>

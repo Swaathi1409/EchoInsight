@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { api, hasToken, clearToken } from './api';
+import { api, hasToken, clearToken, getToken } from './api';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import ConversationDetail from './components/ConversationDetail';
 import LiveDemo from './components/LiveDemo';
-import { LayoutDashboard, Mic2, LogOut, Activity } from 'lucide-react';
+import AdminPanel from './components/AdminPanel';
+import { LayoutDashboard, Mic2, LogOut, Activity, Shield } from 'lucide-react';
 
 function useRoute() {
   const [hash, setHash] = useState(window.location.hash || '#/');
@@ -16,6 +17,13 @@ function useRoute() {
   return hash;
 }
 
+function parseJwt(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(base64));
+  } catch { return {}; }
+}
+
 export default function App() {
   const [authed, setAuthed] = useState(hasToken());
   const hash = useRoute();
@@ -24,17 +32,23 @@ export default function App() {
 
   const convMatch = hash.match(/^#\/conversation\/(.+)$/);
   const isDemo = hash === '#/demo';
-  const isOverview = !convMatch && !isDemo;
+  const isAdmin = hash === '#/admin';
+  const isOverview = !convMatch && !isDemo && !isAdmin;
+
+  const role = authed ? (parseJwt(getToken()).role || 'agent') : 'agent';
+  const isPrivileged = ['admin', 'supervisor'].includes(role);
 
   const navItems = [
     { label: 'Overview', icon: LayoutDashboard, href: '#/', active: isOverview },
     { label: 'Live Demo', icon: Mic2, href: '#/demo', active: isDemo },
+    ...(isPrivileged ? [{ label: 'Admin', icon: Shield, href: '#/admin', active: isAdmin }] : []),
   ];
 
   const logout = () => { clearToken(); setAuthed(false); };
 
   let topbarTitle = 'Overview';
   if (isDemo) topbarTitle = 'Live Demo';
+  if (isAdmin) topbarTitle = 'Admin Panel';
   if (convMatch) topbarTitle = `Conversation ${convMatch[1].slice(0, 8)}…`;
 
   return (
@@ -54,6 +68,9 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-footer">
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, padding: '0 12px' }}>
+            Signed in as <strong>{role}</strong>
+          </div>
           <button className="nav-item" onClick={logout} style={{ color: 'var(--red)' }}>
             <LogOut size={16} /> Sign Out
           </button>
@@ -72,7 +89,9 @@ export default function App() {
           ? <ConversationDetail convId={convMatch[1]} />
           : isDemo
           ? <LiveDemo />
-          : <Dashboard />
+          : isAdmin
+          ? <AdminPanel />
+          : <Dashboard onSelectConv={(id) => { window.location.hash = `#/conversation/${id}`; }} />
         }
       </main>
     </div>
