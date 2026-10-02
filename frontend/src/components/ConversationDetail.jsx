@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { api } from '../api';
 import {
   ArrowLeft, User, Headphones, CheckCircle, XCircle,
-  AlertTriangle, Clock, Shield, ChevronDown, ChevronRight
+  AlertTriangle, Clock, Shield, ChevronDown, ChevronRight, RefreshCw,
 } from 'lucide-react';
 
 const SENTIMENT_COLOR = {
@@ -43,31 +43,44 @@ function QAItem({ item }) {
 
 export default function ConversationDetail({ convId }) {
   const [conv, setConv] = useState(null);
-  const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [analysisMsg, setAnalysisMsg] = useState('');
+  const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    api.getConversation(convId).then(d => { setConv(d); setLoading(false); });
-    fetchAnalysis();
-  }, [convId]);
-
-  const fetchAnalysis = async () => {
-    setAnalysisLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
     try {
-      const a = await api.getAnalysis(convId);
-      setAnalysis(a);
+      const d = await api.getConversation(convId);
+      setConv(d);
+      setError('');
     } catch (err) {
-      setAnalysisMsg(err.message || 'Analysis pending');
-    } finally { setAnalysisLoading(false); }
+      setError(err.message || 'Failed to load conversation');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
+  useEffect(() => { load(); }, [convId]);
+
+  // Auto-refresh every 15s if conv is ended but has no analysis yet (job still running)
+  useEffect(() => {
+    if (!conv) return;
+    if (conv.status === 'ended' && !conv.analysis) {
+      const t = setInterval(() => load(true), 15000);
+      return () => clearInterval(t);
+    }
+  }, [conv]);
+
   if (loading) return <div className="page"><div className="skeleton" style={{ height: 200 }} /></div>;
+  if (error) return <div className="page"><div className="error-banner">{error}</div></div>;
   if (!conv) return <div className="page"><p>Conversation not found.</p></div>;
 
+  const analysis = conv.analysis;
   const qa = analysis?.qa_result;
-  const scoreColor = qa?.score >= 80 ? 'var(--green)' : qa?.score >= 60 ? 'var(--amber)' : 'var(--red)';
+  const scoreColor = !qa?.score ? 'var(--text-muted)' : qa.score >= 80 ? 'var(--green)' : qa.score >= 60 ? 'var(--amber)' : 'var(--red)';
+
 
   return (
     <div className="page">
@@ -75,7 +88,7 @@ export default function ConversationDetail({ convId }) {
         <button className="btn btn-ghost btn-sm" onClick={() => { window.location.hash = '#/'; }}>
           <ArrowLeft size={14} /> Back
         </button>
-        <div>
+        <div style={{ flex: 1 }}>
           <h2 style={{ fontSize: 18, fontWeight: 700 }}>
             Conversation <code style={{ fontSize: 14, background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>{conv.id.slice(0, 8)}</code>
           </h2>
@@ -86,6 +99,11 @@ export default function ConversationDetail({ convId }) {
             {conv.synthetic_assignment && <span className="synthetic-label">Synthetic Assignment</span>}
           </div>
         </div>
+        <button className="btn btn-ghost btn-sm" onClick={() => load(true)} disabled={refreshing}
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+          {refreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
       </div>
 
       <div className="grid-2" style={{ marginBottom: 16 }}>
@@ -182,12 +200,17 @@ export default function ConversationDetail({ convId }) {
             </>
           ) : (
             <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-              {analysisLoading
-                ? <><Clock size={24} style={{ color: 'var(--text-muted)', marginBottom: 8 }} /><p style={{ color: 'var(--text-muted)' }}>Loading analysis…</p></>
-                : <><Clock size={24} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
-                  <p style={{ color: 'var(--text-muted)', marginBottom: 12 }}>{analysisMsg || 'Analysis not yet available'}</p>
-                  <button className="btn btn-ghost btn-sm" onClick={fetchAnalysis}>Check again</button></>
-              }
+              <Clock size={24} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
+              <p style={{ color: 'var(--text-muted)', marginBottom: 12 }}>
+                {conv.status === 'ended'
+                  ? 'Analysis is being processed by the background worker…'
+                  : 'Analysis will be available after the conversation ends.'}
+              </p>
+              {conv.status === 'ended' && (
+                <button className="btn btn-ghost btn-sm" onClick={() => load(true)} disabled={refreshing}>
+                  {refreshing ? 'Checking…' : 'Check again'}
+                </button>
+              )}
             </div>
           )}
         </div>

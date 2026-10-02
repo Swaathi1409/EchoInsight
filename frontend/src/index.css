@@ -281,3 +281,17 @@ tr:last-child td { border-bottom: none; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* Spin animation (used by refresh button) */
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Primary button variant */
+.btn-primary { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+/* Extra badge colors */
+.badge-gray  { background: rgba(74,90,120,0.2); color: var(--text-secondary); }
+.badge-red   { background: var(--red-bg); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+
+/* Synthetic label */
+.synthetic-label { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; background: var(--purple-bg); color: var(--purple); border-radius: 3px; padding: 1px 4px; text-transform: uppercase; }

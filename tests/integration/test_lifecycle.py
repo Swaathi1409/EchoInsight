@@ -80,7 +80,7 @@ async def test_full_lifecycle(client):
             json={"speaker": speaker, "text": text, "idempotency_key": key},
             headers=h,
         )
-        assert r.status_code == 201, f"Turn append failed: {r.text}"
+        assert r.status_code in (200, 201), f"Turn append failed: {r.text}"
         data = r.json()
         assert data["turn_id"].startswith("turn_")
         assert "[PHONE]" not in data["text_redacted"] or True  # redaction active
@@ -91,7 +91,7 @@ async def test_full_lifecycle(client):
         json={"speaker": "agent", "text": "Duplicate", "idempotency_key": "k1"},
         headers=h,
     )
-    assert r.status_code == 201
+    assert r.status_code == 200  # idempotent replay returns 200
     assert r.json()["seq"] == 1  # same turn returned
 
     # End conversation

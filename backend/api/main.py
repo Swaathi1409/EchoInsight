@@ -82,10 +82,53 @@ async def lifespan(app: FastAPI):
     )
     logger.info("Database engine initialized")
 
+    # Auto-migrate: ensure all model columns exist (SQLite-safe ALTER TABLE)
+    await _auto_migrate(settings.database_url)
+
     yield
 
     await close_db()
     logger.info("Database engine closed. Shutdown complete.")
+
+
+async def _auto_migrate(database_url: str) -> None:
+    """
+    Lightweight schema sync for SQLite dev databases.
+    Adds any missing columns from the ORM models using ALTER TABLE.
+    Safe to run on every startup — no-ops if columns already exist.
+    For Postgres, skips (use Alembic migrations instead).
+    """
+    if "sqlite" not in database_url:
+        return  # Postgres: use Alembic
+    from backend.db import get_engine
+    from backend.models import Base
+    from sqlalchemy import text, inspect
+    engine = get_engine()
+    async with engine.begin() as conn:
+        # Ensure all tables exist
+        await conn.run_sync(Base.metadata.create_all)
+        # Check each table for missing columns
+        def _sync_columns(sync_conn):
+            inspector = inspect(sync_conn)
+            for table in Base.metadata.sorted_tables:
+                existing = {c["name"] for c in inspector.get_columns(table.name)}
+                for col in table.columns:
+                    if col.name not in existing:
+                        col_type = col.type.compile(dialect=sync_conn.dialect)
+                        nullable = "NULL" if col.nullable else "NOT NULL"
+                        default = ""
+                        if col.default is not None and col.default.is_scalar:
+                            default = f" DEFAULT {col.default.arg!r}"
+                        elif col.nullable:
+                            default = " DEFAULT NULL"
+                        ddl = f"ALTER TABLE {table.name} ADD COLUMN {col.name} {col_type}{default}"
+                        try:
+                            sync_conn.execute(text(ddl))
+                            logger.info("Auto-migrate: added column", table=table.name, column=col.name)
+                        except Exception as e:
+                            logger.debug("Auto-migrate skip", table=table.name, column=col.name, reason=str(e))
+        await conn.run_sync(_sync_columns)
+
 
 
 def create_app() -> FastAPI:

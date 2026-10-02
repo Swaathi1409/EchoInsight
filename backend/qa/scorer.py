@@ -62,10 +62,10 @@ def score(items: list[dict]) -> dict:
     coverage = assessed_weight / applicable_weight if applicable_weight > 0 else 0.0
 
     if applicable == 0:
-        score_val, score_label = None, "not_assessed"
+        score_val, score_label = 0, "not_assessed"
     elif coverage < DEFAULT_COVERAGE_THRESHOLD:
-        raw = (passed_weight / assessed_weight * 100) if assessed_weight > 0 else None
-        if raw is not None and critical_violation:
+        raw = (passed_weight / assessed_weight * 100) if assessed_weight > 0 else 0.0
+        if critical_violation:
             raw = min(raw, DEFAULT_CRITICAL_VIOLATION_SCORE_CAP)
         score_val, score_label = raw, "partial"
     else:
@@ -76,7 +76,7 @@ def score(items: list[dict]) -> dict:
 
     return {
         "qa_result_id": str(uuid.uuid4()),
-        "score": round(score_val, 1) if score_val is not None else None,
+        "score": round(score_val, 1),
         "score_label": score_label,
         "coverage": round(coverage, 3),
         "items_applicable": applicable,

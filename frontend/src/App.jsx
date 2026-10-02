@@ -22,16 +22,20 @@ export default function App() {
 
   if (!authed) return <Login onLogin={() => setAuthed(true)} />;
 
-  // Simple hash router
   const convMatch = hash.match(/^#\/conversation\/(.+)$/);
   const isDemo = hash === '#/demo';
+  const isOverview = !convMatch && !isDemo;
 
   const navItems = [
-    { label: 'Overview', icon: LayoutDashboard, href: '#/', active: !convMatch && !isDemo },
+    { label: 'Overview', icon: LayoutDashboard, href: '#/', active: isOverview },
     { label: 'Live Demo', icon: Mic2, href: '#/demo', active: isDemo },
   ];
 
   const logout = () => { clearToken(); setAuthed(false); };
+
+  let topbarTitle = 'Overview';
+  if (isDemo) topbarTitle = 'Live Demo';
+  if (convMatch) topbarTitle = `Conversation ${convMatch[1].slice(0, 8)}…`;
 
   return (
     <div className="layout">
@@ -58,9 +62,7 @@ export default function App() {
 
       <main className="main">
         <header className="topbar">
-          <span className="topbar-title">
-            {isDemo ? 'Live Demo' : convMatch ? 'Conversation' : 'Overview'}
-          </span>
+          <span className="topbar-title">{topbarTitle}</span>
           <div className="topbar-right">
             <StatusIndicator />
           </div>
@@ -79,15 +81,34 @@ export default function App() {
 
 function StatusIndicator() {
   const [ok, setOk] = useState(null);
+  const [dbOk, setDbOk] = useState(null);
+
   useEffect(() => {
-    api.health().then(() => setOk(true)).catch(() => setOk(false));
-    const t = setInterval(() => api.health().then(() => setOk(true)).catch(() => setOk(false)), 30000);
+    const check = () => {
+      api.health().then(() => setOk(true)).catch(() => setOk(false));
+      api.ready()
+        .then(r => setDbOk(r.database === 'ok'))
+        .catch(() => setDbOk(false));
+    };
+    check();
+    const t = setInterval(check, 30000);
     return () => clearInterval(t);
   }, []);
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: ok === null ? 'var(--text-muted)' : ok ? 'var(--green)' : 'var(--red)' }}>
-      <Activity size={14} />
-      {ok === null ? 'Connecting…' : ok ? 'API Online' : 'API Offline'}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12,
+        color: ok === null ? 'var(--text-muted)' : ok ? 'var(--green)' : 'var(--red)' }}>
+        <Activity size={13} />
+        {ok === null ? 'Connecting…' : ok ? 'API Online' : 'API Offline'}
+      </div>
+      {dbOk !== null && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11,
+          color: dbOk ? 'var(--text-muted)' : 'var(--amber)' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: dbOk ? 'var(--green)' : 'var(--amber)', display: 'inline-block' }} />
+          DB {dbOk ? 'OK' : 'Check'}
+        </div>
+      )}
     </div>
   );
 }

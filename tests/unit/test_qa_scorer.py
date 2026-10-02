@@ -61,7 +61,7 @@ def test_partial_coverage_label():
 
 def test_empty_items():
     r = score([])
-    assert r["score"] is None
+    assert r["score"] == 0  # 0 when no items applicable (not None)
     assert r["score_label"] == "not_assessed"
     assert r["coverage"] == 0.0
 

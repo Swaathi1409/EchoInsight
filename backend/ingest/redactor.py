@@ -21,8 +21,8 @@ _RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(?<!\d)(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}(?!\d)"), "[PHONE]"),
     # Email addresses
     (re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"), "[EMAIL]"),
-    # PINs / passwords
-    (re.compile(r"(?i)(?:PIN|password|passcode|security\s*code)[:\s]*\d{4,8}"), "[PIN]"),
+    # PINs / passwords (matches 'PIN: 1234', 'PIN is 1234', 'password: abc123')
+    (re.compile(r"(?i)(?:PIN|password|passcode|security\s*code)[:\s]*(?:is\s+)?\d{4,8}"), "[PIN]"),
     # Street addresses
     (re.compile(r"\d{1,5}\s+(?:[A-Z][a-z]+\s+){1,4}(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Way|Blvd|Court|Ct|Circle|Cir)\b"), "[ADDRESS]"),
     # National IDs (SSN-like: XXX-XX-XXXX)
@@ -31,9 +31,24 @@ _RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(?i)(?:date\s+of\s+birth|DOB|born\s+on)[:\s]+\d{1,2}[/-]\d{1,2}[/-]\d{2,4}"), "[DOB]"),
 ]
 
+# Words that start with a capital letter but are NOT names in common agent/customer speech.
+_NOT_NAMES = frozenset({
+    "sorry", "glad", "here", "calling", "unable", "sure", "afraid",
+    "happy", "afraid", "pleased", "not", "from", "just", "with", "also",
+    "afraid", "going", "ready", "sorry", "unable",
+})
+
+
+def _maybe_redact_name(m: re.Match) -> str:
+    """Only redact if the captured word is not a common non-name word."""
+    name = m.group(1).strip()
+    if name.lower().split()[0] in _NOT_NAMES:
+        return m.group(0)  # no change
+    return m.group(0).replace(name, "[NAME]")
+
 # Secondary pass: contextual name redaction (after other patterns)
 _NAME_CONTEXT = re.compile(
-    r"(?i)(?:my\s+name\s+is|I\s+am|this\s+is|speaking\s+with)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)"
+    r"(?i)(?:my\s+name\s+is|this\s+is|speaking\s+with|I\s+am\s+(?!sorry|glad|sure|afraid|not|here|calling|from))\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)"
 )
 
 
@@ -41,8 +56,8 @@ def redact(text: str) -> str:
     """Apply all redaction rules to text. Returns redacted string."""
     for pattern, tag in _RULES:
         text = pattern.sub(tag, text)
-    # Contextual name redaction
-    text = _NAME_CONTEXT.sub(lambda m: m.group(0).replace(m.group(1), "[NAME]"), text)
+    # Contextual name redaction (only when word is likely a name)
+    text = _NAME_CONTEXT.sub(_maybe_redact_name, text)
     return text
 
 

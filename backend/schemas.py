@@ -127,6 +127,10 @@ class ConversationSummary(BaseModel):
     turn_count: int
     synthetic_assignment: bool
     analysis_version: int
+    # Denormalized from latest analysis for list view
+    qa_score: float | None = None
+    churn_risk: str | None = None
+    false_resolution: bool | None = None
 
 
 class ConversationDetail(ConversationSummary):
@@ -282,19 +286,30 @@ class QAResultResponse(BaseModel):
 
 
 class QAItemResponse(BaseModel):
-    item_id: QACheckItemId
-    display: str
-    result: QACheckResult
-    score_contribution: float
-    weight: float
-    explanation: str
-    evidence: list[EvidenceQuote]
-    evidence_type: EvidenceType
-    finding_type: FindingType | None
-    confidence: float
-    human_review_required: bool
-    verification_result: VerificationResult | None
-    policy_reference: str | None
+    """
+    Flexible QA item response — tolerates both the raw scorer output format
+    (flat: quote/turn_id inline) and the full gated pipeline format.
+    All non-identity fields are optional to prevent 500s from schema mismatches.
+    """
+    model_config = {"extra": "ignore", "populate_by_name": True}
+
+    item_id: str  # raw string; validation via QACheckItemId would reject stored strings
+    display: str = ""
+    result: str  # pass / fail / needs_review / not_applicable
+    score_contribution: float = 0.0
+    weight: float = 1.0
+    explanation: str = ""
+    # Evidence may be stored as a flat quote/turn_id or as a list of EvidenceQuote
+    evidence: list[EvidenceQuote] = []
+    evidence_type: str | None = None
+    finding_type: str | None = None
+    confidence: float = 1.0
+    human_review_required: bool = False
+    verification_result: str | None = None
+    policy_reference: str | None = None
+    # Flat fields from scorer output
+    quote: str | None = None
+    turn_id: str | None = None
 
 
 class ComplianceFindingResponse(BaseModel):

@@ -5,6 +5,7 @@ let _token = localStorage.getItem('token') || '';
 export const setToken = (t) => { _token = t; localStorage.setItem('token', t); };
 export const clearToken = () => { _token = ''; localStorage.removeItem('token'); };
 export const hasToken = () => !!_token;
+export const getToken = () => _token;
 
 const headers = (extra = {}) => ({
   'Content-Type': 'application/json',
@@ -26,8 +27,11 @@ export const api = {
   login: (username, password) =>
     fetch(`${API}/api/v1/auth/login`, { method: 'POST', headers: headers(), body: JSON.stringify({ username, password }) }).then(handle),
 
-  getConversations: (limit = 50, offset = 0) =>
-    fetch(`${API}/api/v1/conversations?limit=${limit}&offset=${offset}`, { headers: headers() }).then(handle),
+  getConversations: (limit = 50, offset = 0, status = '') => {
+    const qs = new URLSearchParams({ limit, offset });
+    if (status) qs.set('status', status);
+    return fetch(`${API}/api/v1/conversations?${qs}`, { headers: headers() }).then(handle);
+  },
 
   getConversation: (id) =>
     fetch(`${API}/api/v1/conversations/${id}`, { headers: headers() }).then(handle),
@@ -44,11 +48,21 @@ export const api = {
   endConversation: (id) =>
     fetch(`${API}/api/v1/conversations/${id}/end`, { method: 'POST', headers: headers() }).then(handle),
 
-  getAnalysis: (id) =>
-    fetch(`${API}/api/v1/conversations/${id}/analysis`, { headers: headers() }).then(handle),
+  getJobs: (convId) =>
+    fetch(`${API}/api/v1/conversations/${convId}/jobs`, { headers: headers() }).then(handle),
 
-  submitTranscript: (body) =>
-    fetch(`${API}/api/v1/conversations/submit`, { method: 'POST', headers: headers(), body: JSON.stringify(body) }).then(handle),
+  getOpenCommitments: (limit = 50) =>
+    fetch(`${API}/api/v1/conversations/open-commitments?limit=${limit}`, { headers: headers() }).then(handle),
+
+  getFalseResolutions: () =>
+    fetch(`${API}/api/v1/conversations/false-resolutions`, { headers: headers() }).then(handle),
+
+  getAgentAnalytics: (agentId) =>
+    fetch(`${API}/api/v1/analytics/agent/${agentId}`, { headers: headers() }).then(handle),
+
+  getTeamAnalytics: (teamId) =>
+    fetch(`${API}/api/v1/analytics/team/${teamId}`, { headers: headers() }).then(handle),
 
   health: () => fetch(`${API}/health`).then(handle),
+  ready: () => fetch(`${API}/ready`).then(handle),
 };

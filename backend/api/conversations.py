@@ -18,7 +18,7 @@ import hashlib, logging, uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -100,18 +100,65 @@ async def list_conversations(
     user: User = Depends(get_current_user),
     limit: int = 50,
     offset: int = 0,
+    status: str | None = None,
 ) -> list[ConversationSummary]:
+    from sqlalchemy import func
     filters = _scope_filter(user)
     q = select(Conversation).order_by(Conversation.started_at.desc()).offset(offset).limit(limit)
     if filters:
         q = q.where(*filters)
+    if status:
+        q = q.where(Conversation.status == status)
     rows = (await session.execute(q)).scalars().all()
-    # turn counts
+
+    # Batch turn counts
+    conv_ids = [c.id for c in rows]
+    if conv_ids:
+        tc_q = (
+            select(Turn.conversation_id, func.count(Turn.turn_id).label("tc"))
+            .where(Turn.conversation_id.in_(conv_ids))
+            .group_by(Turn.conversation_id)
+        )
+        tc_map = {r.conversation_id: r.tc for r in (await session.execute(tc_q)).all()}
+    else:
+        tc_map = {}
+
+    # Batch latest analysis QA data
+    if conv_ids:
+        from backend.models import Analysis, QAResult
+        an_q = (
+            select(
+                Analysis.conversation_id,
+                Analysis.churn_risk,
+                Analysis.false_resolution,
+                QAResult.score,
+            )
+            .join(QAResult, QAResult.analysis_id == Analysis.analysis_id, isouter=True)
+            .where(
+                Analysis.conversation_id.in_(conv_ids),
+                Analysis.provisional == False,  # noqa: E712
+            )
+            .order_by(Analysis.version.desc())
+        )
+        an_rows = (await session.execute(an_q)).all()
+        # Keep only highest version per conv (already ordered desc, take first seen)
+        an_map: dict = {}
+        for ar in an_rows:
+            if ar.conversation_id not in an_map:
+                an_map[ar.conversation_id] = ar
+    else:
+        an_map = {}
+
     summaries = []
     for c in rows:
-        tc_q = select(Turn).where(Turn.conversation_id == c.id)
-        tc = len((await session.execute(tc_q)).scalars().all())
-        summaries.append(_conv_summary(c, tc))
+        tc = tc_map.get(c.id, 0)
+        ar = an_map.get(c.id)
+        summaries.append(_conv_summary(
+            c, tc,
+            qa_score=ar.score if ar else None,
+            churn_risk=ar.churn_risk if ar else None,
+            false_resolution=ar.false_resolution if ar else None,
+        ))
     return summaries
 
 
@@ -151,12 +198,13 @@ async def get_conversation(
 async def append_turn(
     conv_id: str,
     body: AppendTurnRequest,
+    response: Response,
     session=Depends(_db_session_dependency),
     user: User = Depends(get_current_user),
 ) -> AppendTurnResponse:
     conv = await _get_or_404(conv_id, session, user)
     if conv.status == ConversationStatus.ENDED.value:
-        raise HTTPException(400, "Conversation has ended")
+        raise HTTPException(status_code=409, detail="Conversation has ended; no more turns can be appended")
 
     # Idempotency check
     existing = (await session.execute(
@@ -167,6 +215,7 @@ async def append_turn(
     )).scalar_one_or_none()
     if existing:
         prov = conv.provisional_state_json or {}
+        response.status_code = 200  # idempotent replay
         return _append_resp(existing, prov, prov.get("commitments", []))
 
     # Redact
@@ -234,7 +283,7 @@ async def end_conversation(
 ) -> dict:
     conv = await _get_or_404(conv_id, session, user)
     if conv.status == ConversationStatus.ENDED.value:
-        return {"status": "already_ended", "conversation_id": conv_id}
+        raise HTTPException(status_code=409, detail="Conversation is already ended")
 
     conv.status = ConversationStatus.ENDED.value
     conv.ended_at = datetime.now(timezone.utc)
@@ -345,7 +394,13 @@ async def _get_or_404(conv_id: str, session: AsyncSession, user: User) -> Conver
     return conv
 
 
-def _conv_summary(conv: Conversation, turn_count: int) -> ConversationSummary:
+def _conv_summary(
+    conv: Conversation,
+    turn_count: int,
+    qa_score: float | None = None,
+    churn_risk: str | None = None,
+    false_resolution: bool | None = None,
+) -> ConversationSummary:
     return ConversationSummary(
         id=conv.id, source_id=conv.source_id, agent_id=conv.agent_id,
         team_id=conv.team_id, channel=conv.channel, status=conv.status,
@@ -353,6 +408,9 @@ def _conv_summary(conv: Conversation, turn_count: int) -> ConversationSummary:
         end_reason=conv.end_reason, turn_count=turn_count,
         synthetic_assignment=conv.synthetic_assignment,
         analysis_version=conv.analysis_version,
+        qa_score=qa_score,
+        churn_risk=churn_risk,
+        false_resolution=false_resolution,
     )
 
 

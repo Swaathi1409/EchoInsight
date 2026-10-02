@@ -21,8 +21,12 @@ async def _run_job(job: Job) -> None:
         if job.job_type == JobType.FINAL_ANALYSIS.value:
             analysis_id = await run_final_analysis(job.conversation_id, session)
             logger.info("Final analysis complete: conv=%s analysis=%s", job.conversation_id[:8], analysis_id[:8])
-        # PER_TURN_EXTRACTION jobs are lightweight; skipped in MVP worker
-        # (handled synchronously in the append_turn route for demo)
+        elif job.job_type == JobType.PER_TURN_EXTRACTION.value:
+            # Per-turn extraction is handled inline in the append_turn API endpoint.
+            # Mark as succeeded here to drain the queue without LLM calls.
+            logger.debug("Per-turn extraction job %s: no-op (handled inline)", job.job_id[:8])
+        else:
+            logger.warning("Unknown job type: %s", job.job_type)
 
 
 async def _process_one(job_id: str) -> None:
@@ -68,7 +72,7 @@ async def poll_loop() -> None:
             async with get_db_session() as session:
                 result = await session.execute(
                     select(Job.job_id).where(Job.status == JobStatus.QUEUED.value)
-                    .order_by(Job.created_at).limit(5)
+                    .order_by(Job.created_at).limit(20)  # clear backlog fast
                 )
                 job_ids = [r[0] for r in result]
 
