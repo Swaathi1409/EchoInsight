@@ -1,0 +1,33 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["backend", "tests", "evals", "data"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "C4", "T20"]
+ignore = ["E501"]  # line length handled by formatter
+per-file-ignores = {"tests/**" = ["T20"]}
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend", "tests", "evals", "data"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+disallow_untyped_defs = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "integration: marks tests that require a database",
+    "slow: marks tests that are slow",
+    "real_model: marks tests that require a real Groq API key",
+]
+
+[tool.coverage.run]
+source = ["backend"]
+omit = ["tests/*", "backend/alembic/*"]

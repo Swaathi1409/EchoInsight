@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+
+jobs:
+  backend-lint:
+    name: Backend Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install ruff mypy
+      - run: ruff check backend/ tests/
+      - run: mypy backend/ --ignore-missing-imports
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite+aiosqlite:///:memory:
+      GROQ_API_KEY: gsk_test_placeholder
+      SECRET_KEY: ${{ secrets.TEST_SECRET_KEY || 'a64aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }}
+      APP_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m pytest tests/ -q --tb=short
+      - run: python -m pytest tests/ --cov=backend --cov-report=xml -q
+      - uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: coverage.xml
+          fail_ci_if_error: false
+
+  security-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install pip-audit
+      - run: pip-audit -r requirements.txt --ignore-vuln PYSEC-2022-42974 || true
+
+  frontend-test:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: npm audit --audit-level=high || true
+        working-directory: frontend
+
+  docker-build:
+    name: Docker Build Check
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: [backend-test, frontend-test]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t echoinsight-backend:ci backend/
+      - name: Build frontend image
+        run: docker build -t echoinsight-frontend:ci frontend/
+      - name: Smoke test health endpoint
+        run: |
+          docker run -d --name backend-ci \
+            -e DATABASE_URL=sqlite+aiosqlite:///./test.db \
+            -e GROQ_API_KEY=gsk_placeholder \
+            -e SECRET_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+            -e APP_ENV=test \
+            -p 8000:8000 \
+            echoinsight-backend:ci
+          sleep 5
+          curl -f http://localhost:8000/health || (docker logs backend-ci && exit 1)
+          docker stop backend-ci

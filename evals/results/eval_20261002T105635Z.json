@@ -1,0 +1,33 @@
+{
+  "timestamp": "20261002T105635Z",
+  "source": "live_api",
+  "sample_size": 0,
+  "status": "provisional",
+  "note": "All metrics are provisional until the gold set is human-reviewed. Metrics without gold labels report distributions only. Real-model metrics require a live Groq API key and running analysis jobs.",
+  "leakage_check": {
+    "status": "skipped",
+    "reason": "No test IDs in split manifest"
+  },
+  "reliability": {
+    "note": "No analyses to evaluate",
+    "total": 0
+  },
+  "qa_coverage": {
+    "note": "No QA results available"
+  },
+  "sentiment_distribution": {
+    "note": "No sentiment trajectories in results"
+  },
+  "resolution_distribution": {
+    "note": "No resolution data"
+  },
+  "metrics_not_computed": [
+    "call_reason_F1 (requires gold labels)",
+    "sentiment_F1 (requires gold labels)",
+    "resolution_F1 (requires gold labels)",
+    "evidence_correctness (requires human review)",
+    "provisional_vs_final_agreement (requires incremental run log)",
+    "selective_verification_routing_precision (requires manual review of routed items)"
+  ],
+  "how_to_complete_eval": "1. Annotate gold conversations using evals/gold_workbook.csv and evals/rubric.md. 2. Run 'make eval' after annotation to compute F1 metrics. 3. Results are labeled 'provisional' until human review is confirmed."
+}

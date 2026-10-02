@@ -1,0 +1,128 @@
+# policy_example_v1.yaml
+# EXAMPLE QA policy configuration for EchoInsight.
+# This is a labeled example only. It does not represent real legal or regulatory requirements.
+# Administrators must replace this with their organization's actual policy.
+# Version: 1
+
+version: 1
+label: "EXAMPLE POLICY - NOT REAL LEGAL OR REGULATORY REQUIREMENTS"
+
+checklist_items:
+  - id: greeting
+    display: "Greeting"
+    description: "Agent greets the customer and introduces themselves by name at the start of the call."
+    weight: 1.0
+    required: true
+    critical: false
+    applicability_condition: "always"
+    policy_reference: "Example Standard Operating Procedure, Section 3.1"
+    evidence_type: "quote"
+    approved_phrases:
+      - "thank you for calling"
+      - "how can I assist you"
+      - "how can I help you"
+      - "my name is"
+    not_applicable_conditions:
+      - "conversation_start_is_transfer"
+
+  - id: identity_verification
+    display: "Identity Verification"
+    description: "Agent verifies the customer's identity before accessing or modifying account information."
+    weight: 2.0
+    required: true
+    critical: true
+    applicability_condition: "account_action_requested"
+    policy_reference: "Example Security Policy, Section 7.2"
+    evidence_type: "quote"
+    approved_phrases:
+      - "verify your identity"
+      - "confirm your identity"
+      - "account PIN"
+      - "date of birth"
+      - "account number"
+    max_verification_attempts: 3
+    verification_attempt_patterns:
+      - "please provide"
+      - "can you verify"
+      - "can you confirm"
+
+  - id: empathy
+    display: "Empathy"
+    description: "Agent acknowledges the customer's frustration or inconvenience at least once during the call."
+    weight: 1.5
+    required: true
+    critical: false
+    applicability_condition: "customer_expresses_frustration"
+    policy_reference: "Example Service Quality Standard, Section 5.3"
+    evidence_type: "quote"
+    assessment_method: "llm_contextual"
+
+  - id: disclosure
+    display: "Required Disclosure"
+    description: "Agent discloses any relevant fees or conditions before completing a transaction or scheduling a visit."
+    weight: 1.5
+    required: true
+    critical: true
+    applicability_condition: "transaction_or_visit_scheduled"
+    policy_reference: "Example Disclosure Policy, Section 2.1"
+    evidence_type: "quote"
+    required_disclosure_phrases:
+      - "technician visit fee"
+      - "additional charge"
+      - "standard rate applies"
+      - "there may be a fee"
+
+  - id: prohibited_promises
+    display: "No Prohibited Promises"
+    description: "Agent does not make guarantees about outcomes, timeframes, or service levels that cannot be assured."
+    weight: 2.0
+    required: true
+    critical: true
+    applicability_condition: "always"
+    policy_reference: "Example Compliance Policy, Section 4.1"
+    evidence_type: "quote"
+    finding_type: "confirmed_violation"
+    prohibited_phrases:
+      - "I guarantee"
+      - "I promise you"
+      - "this will definitely"
+      - "100 percent"
+      - "we will definitely fix"
+      - "guaranteed resolution"
+
+  - id: closure
+    display: "Proper Closure"
+    description: "Agent confirms all issues are addressed, offers further assistance, and closes the call professionally."
+    weight: 1.0
+    required: true
+    critical: false
+    applicability_condition: "always"
+    policy_reference: "Example Standard Operating Procedure, Section 3.5"
+    evidence_type: "quote"
+    approved_phrases:
+      - "is there anything else"
+      - "have a great day"
+      - "thank you for calling"
+      - "I hope that resolves"
+
+scoring:
+  coverage_threshold: 0.70
+  critical_violation_score_cap: 60
+  partial_score_label: "partial"
+  exclude_needs_review_from_denominator: true
+  exclude_not_applicable_from_denominator: true
+
+churn_risk_signals:
+  low:
+    - "issue resolved with agent confirmation"
+    - "customer positive sentiment throughout"
+  medium:
+    - "issue partially resolved"
+    - "customer frustrated at end"
+    - "follow-up action pending"
+  high:
+    - "customer explicitly mentions cancellation or leaving"
+    - "issue unresolved at end"
+    - "customer angry sentiment at end"
+    - "false resolution detected"
+    - "agent failed critical checklist item"

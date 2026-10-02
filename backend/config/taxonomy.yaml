@@ -1,0 +1,64 @@
+# taxonomy.yaml
+# Call reason taxonomy for EchoInsight.
+# Version: 1
+# Labels are multi-class: a conversation may have multiple reasons.
+# Definitions are one sentence each. Adjust after reviewing profiling results.
+# Record any changes and why in docs/architecture-decisions.md.
+
+version: 1
+labels:
+  - id: network_coverage_or_dropped_calls
+    display: "Network Coverage or Dropped Calls"
+    definition: "Customer reports poor signal, no service in certain areas, or calls being dropped unexpectedly."
+
+  - id: mobile_data_issue
+    display: "Mobile Data Issue"
+    definition: "Customer cannot use mobile internet, experiences slow speeds, or has data not working on their device."
+
+  - id: internet_or_broadband_outage
+    display: "Internet or Broadband Outage"
+    definition: "Customer reports complete or partial loss of fixed-line internet or broadband service at home or business."
+
+  - id: billing_dispute
+    display: "Billing Dispute"
+    definition: "Customer disputes a charge, questions an invoice amount, or requests a credit or refund."
+
+  - id: plan_change_or_upgrade
+    display: "Plan Change or Upgrade"
+    definition: "Customer wants to change their current service plan, upgrade data allowance, or add features."
+
+  - id: cancellation_or_churn_intent
+    display: "Cancellation or Churn Intent"
+    definition: "Customer explicitly states they want to cancel service or expresses intent to leave the provider."
+
+  - id: roaming_or_international
+    display: "Roaming or International"
+    definition: "Customer asks about or has issues with international roaming, calls from abroad, or international data packages."
+
+  - id: sim_or_activation
+    display: "SIM or Activation"
+    definition: "Customer needs a new SIM card, reports SIM not working, or needs help activating a device or account."
+
+  - id: device_issue
+    display: "Device Issue"
+    definition: "Customer reports a problem with their handset or device hardware that is affecting service."
+
+  - id: technical_visit
+    display: "Technical Visit"
+    definition: "Customer requests or discusses scheduling a technician visit for installation, repair, or investigation."
+
+  - id: account_access_or_security
+    display: "Account Access or Security"
+    definition: "Customer cannot access their account, has forgotten credentials, or reports an unauthorized access concern."
+
+  - id: complaint_or_escalation
+    display: "Complaint or Escalation"
+    definition: "Customer expresses formal dissatisfaction, requests a manager, or the call is escalated to a senior agent or specialist team."
+
+  - id: general_inquiry
+    display: "General Inquiry"
+    definition: "Customer asks a general question about products, services, or policies that does not fit another category."
+
+  - id: payment_or_top_up
+    display: "Payment or Top-Up"
+    definition: "Customer wants to make a payment, top up credit, or reports a payment not being applied correctly."

@@ -1,0 +1,85 @@
+{
+  "version": "v1",
+  "generated_at": "2026-10-02T09:30:00Z",
+  "method": "Bounded profiling via HuggingFace datasets-server API (/rows endpoint). 500 rows at 5 evenly spaced offsets. Script: scratch/profile_dataset.py. Complete conversation analysis: scratch/profile_convs.py, n=25.",
+  "dataset_revision": "c8bfc7797a347b493f65fdc4e4c9694a8a19b56f",
+  "total_rows": 3726699,
+  "estimated_conversations": 200000,
+  "sample_size": 500,
+  "offsets_sampled": [0, 750000, 1500000, 2500000, 3600000],
+  "ordering_bias": "None detected. Statistics consistent across all 5 offsets. File appears shuffled at conversation level.",
+  "columns": ["conversation_id", "speaker", "date_time", "text"],
+  "speaker_values_observed": ["agent", "client"],
+  "speaker_mapping": {"client": "customer"},
+  "speaker_counts_n500": {"agent": 260, "client": 240},
+  "speaker_ratio_n500": {"agent_pct": 52.0, "client_pct": 48.0},
+  "text_length": {
+    "n": 500,
+    "min": 8,
+    "p25": 55,
+    "median": 108,
+    "p75": 181,
+    "p90": 258,
+    "max": 542,
+    "avg": 130.5
+  },
+  "turn_count_per_conversation": {
+    "n": 25,
+    "note": "Complete conversations only, from interior of 100-row blocks",
+    "min": 11,
+    "p25": 15,
+    "median": 15,
+    "p75": 19,
+    "p90": 19,
+    "p99": 23,
+    "max": 23,
+    "avg": 16.4
+  },
+  "empty_text_count_n500": 0,
+  "timestamp_formats": {
+    "iso_with_microseconds": 449,
+    "iso_without_microseconds": 51,
+    "note": "All timestamps include UTC offset. Microseconds appear in ~90% of rows."
+  },
+  "sensitive_patterns_n500": {
+    "pin_or_account_patterns": 31,
+    "masked_patterns_hashX": 2,
+    "noise_markers_pause": 3
+  },
+  "sensitive_patterns_note": "Dataset is synthetic but redaction is applied as if data were real.",
+  "conversation_structure_n33": {
+    "customer_first": 6,
+    "agent_first": 27,
+    "both_speakers": 33,
+    "agent_only": 0,
+    "customer_only": 0
+  },
+  "duplicate_conv_id_text_pairs_n500": 10,
+  "duplicate_rate_pct": 2.0,
+  "closing_phrases_n500": 78,
+  "verification_phrases_n500": 37,
+  "observed_brand": "Union Mobile (fictional)",
+  "observed_topics": [
+    "dropped_calls_network_coverage",
+    "mobile_data_issue",
+    "billing",
+    "account_access_identity_verification",
+    "device_issues",
+    "transfer_escalation"
+  ],
+  "topic_clustering": "Skipped to stay within time-box. TF-IDF + MiniBatchKMeans would require downloading full corpus.",
+  "text_noise_examples": [
+    "Thank, thank you for calling",
+    "it's possible that there might be some network congestion in y",
+    "(pause)",
+    "Excellent. And if that still't work"
+  ],
+  "analysis_pool": {
+    "size": 147,
+    "seed": 42,
+    "manifest_path": "data/manifests/analysis_pool_v1.json",
+    "gold_split_path": "data/manifests/gold_split_v1.json",
+    "gold_dev_size": 13,
+    "gold_test_size": 23
+  }
+}

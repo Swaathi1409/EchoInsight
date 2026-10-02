@@ -1,0 +1,41 @@
+# Requirements for EchoInsight backend
+# Pinned major versions; minor/patch locked in pip-compile output (requirements.lock).
+
+# Web framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+httpx==0.27.2
+
+# Data validation
+pydantic==2.9.2
+pydantic-settings==2.5.2
+email-validator==2.2.0
+
+# Database
+sqlalchemy==2.0.36
+alembic==1.13.3
+asyncpg==0.29.0          # PostgreSQL async driver
+aiosqlite==0.20.0        # SQLite async driver (unit tests)
+
+# Auth
+python-jose[cryptography]==3.3.0
+passlib[argon2]==1.7.4
+python-multipart==0.0.12
+
+# LLM provider
+groq==1.7.0
+
+# HTTP utilities
+tenacity==9.0.0          # Retry with exponential backoff
+
+# Config
+python-dotenv==1.0.1
+pyyaml==6.0.2
+
+# Observability
+prometheus-client==0.21.0
+structlog==24.4.0
+
+# Data fetch (for pool manifest reconstruction)
+requests==2.32.3
+huggingface-hub==0.25.2

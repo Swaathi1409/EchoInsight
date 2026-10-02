@@ -1,0 +1,79 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+*.egg
+.venv/
+venv/
+env/
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Model cache and ML artifacts
+.cache/
+model_cache/
+*.pkl
+*.bin
+*.onnx
+huggingface_hub/
+
+# Raw data - NEVER commit raw rows
+data/raw/
+data/sample/
+*.csv
+*.parquet
+
+# Test output and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Build artifacts
+frontend/dist/
+frontend/node_modules/
+frontend/.vite/
+
+# Docker build context artifacts
+*.tar.gz
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Secrets and credentials
+*.pem
+*.key
+*.crt
+secrets/
+
+# Alembic generated (keep migrations, not pycache)
+backend/alembic/__pycache__/
+
+# Eval results with real data (keep versioned results in evals/results/)
+evals/results/raw/
