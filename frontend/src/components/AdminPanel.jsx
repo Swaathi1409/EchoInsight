@@ -200,7 +200,13 @@ function AuditDetailModal({ log, onClose }) {
               <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Resource</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{log.resource_type}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <code style={{ fontSize: 11, wordBreak: 'break-all' }}>{log.resource_id || '—'}</code>
+                {log.resource_id && log.resource_type === 'conversation' ? (
+                  <a href={`#/conversation/${log.resource_id}`} style={{ color: 'var(--accent)', textDecoration: 'none' }} title="View Conversation">
+                    <code style={{ fontSize: 11, wordBreak: 'break-all', color: 'inherit' }}>{log.resource_id}</code>
+                  </a>
+                ) : (
+                  <code style={{ fontSize: 11, wordBreak: 'break-all' }}>{log.resource_id || '—'}</code>
+                )}
                 {log.resource_id && <CopyButton text={log.resource_id} />}
               </div>
             </div>
@@ -292,7 +298,13 @@ function AuditLogTable() {
                   </td>
                   <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{l.resource_type} / </span>
-                    <code style={{ fontSize: 11 }}>{l.resource_id ? l.resource_id.slice(0, 8) + '…' : '—'}</code>
+                    {l.resource_id && l.resource_type === 'conversation' ? (
+                      <a href={`#/conversation/${l.resource_id}`} onClick={e => e.stopPropagation()} style={{ color: 'var(--accent)', textDecoration: 'none' }} title="View Conversation">
+                        <code style={{ fontSize: 11, color: 'inherit' }}>{l.resource_id.slice(0, 8)}…</code>
+                      </a>
+                    ) : (
+                      <code style={{ fontSize: 11 }}>{l.resource_id ? l.resource_id.slice(0, 8) + '…' : '—'}</code>
+                    )}
                     {l.resource_id && <CopyButton text={l.resource_id} />}
                   </td>
                   <td style={{ padding: '8px 12px', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-muted)', fontSize: 11, textAlign: 'right' }}>
