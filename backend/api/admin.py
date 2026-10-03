@@ -24,7 +24,7 @@ from backend.api.deps import get_current_user
 from backend.api.audit import audit_log
 from backend.db import _db_session_dependency
 from backend.domain_model import UserRole
-from backend.models import AuditLog, QAResult, Analysis, Conversation, User
+from backend.models import AuditLog, QAResult, Analysis, Conversation, User, ReviewAnnotation
 
 logger = logging.getLogger(__name__)
 
@@ -102,8 +102,8 @@ async def list_audit_logs(
 # Reviewer workflow
 # ---------------------------------------------------------------------------
 
-# In-memory store (sufficient for MVP; production: add ReviewerNote table)
-_review_store: dict[str, list[dict]] = {}
+# NOTE: Reviews are persisted to the review_annotations table (D16 fix).
+# The old in-memory _review_store has been removed.
 
 
 class CreateReviewRequest(BaseModel):
@@ -133,7 +133,24 @@ async def list_reviews(
 ) -> list[ReviewResponse]:
     """List all reviewer annotations for a conversation."""
     _require_supervisor_or_above(user)
-    return _review_store.get(conv_id, [])
+    rows = (await session.execute(
+        select(ReviewAnnotation)
+        .where(ReviewAnnotation.conversation_id == conv_id)
+        .order_by(ReviewAnnotation.created_at.asc())
+    )).scalars().all()
+    import json as _json
+    return [
+        ReviewResponse(
+            review_id=r.review_id,
+            conversation_id=r.conversation_id,
+            reviewer_id=r.reviewer_id,
+            verdict=r.verdict,
+            notes=r.notes or "",
+            qa_override=_json.loads(r.qa_override_json) if r.qa_override_json else {},
+            created_at=r.created_at.isoformat() if r.created_at else "",
+        )
+        for r in rows
+    ]
 
 
 @router.post("/conversations/{conv_id}/reviews", response_model=ReviewResponse, status_code=201)
@@ -154,23 +171,34 @@ async def create_review(
     if body.verdict not in ("approved", "rejected", "needs_rework"):
         raise HTTPException(status_code=422, detail="verdict must be approved|rejected|needs_rework")
 
+    import json as _json
     review_id = str(uuid.uuid4())
-    entry = ReviewResponse(
+    now = datetime.now(timezone.utc)
+    annotation = ReviewAnnotation(
+        review_id=review_id,
+        conversation_id=conv_id,
+        reviewer_id=user.id,
+        verdict=body.verdict,
+        notes=body.notes,
+        qa_override_json=_json.dumps(body.qa_override) if body.qa_override else None,
+        created_at=now,
+    )
+    session.add(annotation)
+    await session.flush()
+
+    await audit_log(session, user_id=user.id, action="create_review",
+                    resource_type="conversation", resource_id=conv_id,
+                    details={"verdict": body.verdict, "review_id": review_id,
+                             "overrides": len(body.qa_override)})
+    return ReviewResponse(
         review_id=review_id,
         conversation_id=conv_id,
         reviewer_id=user.id,
         verdict=body.verdict,
         notes=body.notes,
         qa_override=body.qa_override,
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=now.isoformat(),
     )
-    _review_store.setdefault(conv_id, []).append(entry.model_dump())
-
-    await audit_log(session, user_id=user.id, action="create_review",
-                    resource_type="conversation", resource_id=conv_id,
-                    details={"verdict": body.verdict, "review_id": review_id,
-                             "overrides": len(body.qa_override)})
-    return entry
 
 
 # ---------------------------------------------------------------------------

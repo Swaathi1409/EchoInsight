@@ -67,6 +67,22 @@ function SentimentTimeline({ trajectory }) {
   );
 }
 
+// D6: Convert raw deadline tags/phrases to human-readable text
+function formatDeadline(raw) {
+  if (!raw) return null;
+  const lower = raw.toLowerCase().trim();
+  // Strip internal tag-like tokens
+  if (lower === 'eod' || lower === 'end of day') return 'End of day';
+  if (lower === 'immediate' || lower === 'asap') return 'Immediately';
+  if (lower === 'tomorrow') return 'Tomorrow';
+  if (lower === 'specific' || lower === 'explicit') return raw; // show original if just tag
+  // Remove tag prefixes like "[eod]", "[specific]" etc.
+  const cleaned = raw.replace(/^\[?(eod|specific|explicit|immediate|asap)\]?\s*/i, '').trim();
+  // If it looks like a time "6pm", "18:00" — keep as is
+  if (/^\d{1,2}(:\d{2})?\s*(am|pm)?$/i.test(cleaned)) return cleaned;
+  return cleaned || raw;
+}
+
 function CommitmentLedger({ commitments }) {
   if (!commitments || commitments.length === 0) return (
     <p style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No commitments recorded.</p>
@@ -84,7 +100,11 @@ function CommitmentLedger({ commitments }) {
             <div style={{ fontSize: 13, color: 'var(--text-primary)', marginBottom: 2 }}>{c.description}</div>
             <div style={{ display: 'flex', gap: 10, fontSize: 11, color: 'var(--text-muted)' }}>
               {c.owner && <span>Owner: {c.owner}</span>}
-              {c.deadline && <span style={{ color: 'var(--amber)' }}>Due: {c.deadline}</span>}
+              {c.deadline && (
+                <span style={{ color: 'var(--amber)' }} title={c.deadline}>
+                  Due: {formatDeadline(c.deadline)}
+                </span>
+              )}
               {c.created_at_turn_id && <span>Created at: {c.created_at_turn_id}</span>}
             </div>
             {(c.evidence_json || []).map((ev, ei) => ev.quote && (
@@ -254,10 +274,18 @@ export default function ConversationDetail({ convId }) {
           <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
             Conversation <code style={{ fontSize: 14, background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>{conv.id.slice(0, 8)}</code>
           </h2>
-          <div style={{ display: 'flex', gap: 10, marginTop: 4, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 4, alignItems: 'center', flexWrap: 'wrap' }}>
             <span className={`badge ${conv.status === 'ended' ? 'badge-green' : conv.status === 'active' ? 'badge-amber' : conv.status === 'closed' ? 'badge-gray' : 'badge-blue'}`}>{conv.status}</span>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{conv.turn_count} turns</span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{conv.started_at ? new Date(conv.started_at).toLocaleString() : ''}</span>
+            {conv.started_at && (
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {new Date(conv.started_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                {', '}
+                {new Date(conv.started_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+            {conv.agent_id && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Agent: <strong>{conv.agent_id}</strong></span>}
+            {conv.team_id && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Team: <strong>{conv.team_id}</strong></span>}
             {conv.synthetic_assignment && <span className="synthetic-label">Synthetic Assignment</span>}
           </div>
         </div>

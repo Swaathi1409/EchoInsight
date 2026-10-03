@@ -328,3 +328,23 @@ class CaseConversation(Base):
         Index("ix_case_conversations_case_id", "case_id"),
         Index("ix_case_conversations_conversation_id", "conversation_id"),
     )
+
+
+class ReviewAnnotation(Base):
+    """Persistent reviewer annotation for a conversation (D16 fix: replaces in-memory store)."""
+    __tablename__ = "review_annotations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    review_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    conversation_id: Mapped[str] = mapped_column(String(36), ForeignKey("conversations.id"), nullable=False)
+    reviewer_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    verdict: Mapped[str] = mapped_column(String(32), nullable=False)  # approved|rejected|needs_rework
+    notes: Mapped[str] = mapped_column(Text, default="")
+    qa_override_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON dict item_id -> pass|fail|na
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_review_annotations_conversation_id", "conversation_id"),
+        Index("ix_review_annotations_reviewer_id", "reviewer_id"),
+        Index("ix_review_annotations_created_at", "created_at"),
+    )

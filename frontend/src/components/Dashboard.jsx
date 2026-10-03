@@ -201,28 +201,25 @@ export default function Dashboard({ onSelectConv }) {
     ? Math.round(withQA.reduce((s, c) => s + c.qa_score, 0) / withQA.length)
     : null;
 
-  const resolved = convs.filter(c => {
-    const r = c.resolution || (c.analysis?.resolution);
-    return r === 'resolved';
-  }).length;
+  const resolved = convs.filter(c => c.resolution === 'resolved').length;
 
   const withFR = convs.filter(c => c.false_resolution).length;
   const openCommitCount = commitments.length;
 
-  // Resolution distribution
+  // Resolution distribution - use top-level resolution field from list API
   const resolutionCounts = {};
   convs.forEach(c => {
-    const r = c.analysis?.resolution || 'unknown';
+    const r = c.resolution || (c.status === 'active' ? 'active' : 'unknown');
     resolutionCounts[r] = (resolutionCounts[r] || 0) + 1;
   });
   const resolutionData = Object.entries(resolutionCounts)
     .map(([label, value]) => ({ label, value, color: RESOLUTION_COLORS[label] }))
     .sort((a, b) => b.value - a.value);
 
-  // Call reason distribution (from analysis)
+  // Call reason distribution - use top-level reasons field from list API
   const reasonCounts = {};
   convs.forEach(c => {
-    (c.analysis?.reasons || []).forEach(r => {
+    (c.reasons || []).forEach(r => {
       reasonCounts[r] = (reasonCounts[r] || 0) + 1;
     });
   });
