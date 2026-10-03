@@ -102,6 +102,7 @@ async def _auto_migrate(database_url: str) -> None:
         return  # Postgres: use Alembic
     from backend.db import get_engine
     from backend.models import Base
+    import backend.action_layer.models  # noqa: F401 — registers act_* tables into Base.metadata
     from sqlalchemy import text, inspect
     engine = get_engine()
     async with engine.begin() as conn:
@@ -256,6 +257,10 @@ def create_app() -> FastAPI:
     app.include_router(admin_router)
     app.include_router(stream_router)
     app.include_router(cases_router)
+
+    # Action Intelligence Layer (additive, guarded by master switch)
+    from backend.action_layer.api.router import router as action_router
+    app.include_router(action_router, prefix="/api/v1")
 
     return app
 
