@@ -2,35 +2,35 @@
 backend/action_layer/guard.py
 Master switch guard for the Action Intelligence Layer.
 
-Every action layer endpoint must call require_enabled() first.
-When disabled, returns a 200 response with enabled=false (not a 4xx).
+The DB toggle (act_settings.enabled) is the single gate.
+In production, add ACTION_LAYER_ENABLED=true to your env to seed the
+act_settings row; in development the seed-demo endpoint handles this.
 """
 from __future__ import annotations
 
-from fastapi import Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from backend.action_layer.config import ACTION_LAYER_ENABLED_ENV, DISABLED_RESPONSE
-from backend.action_layer.models import ActSettings
-from backend.db import get_db_session
 from sqlalchemy import select
+
+from backend.action_layer.config import DISABLED_RESPONSE
+from backend.action_layer.models import ActSettings
+from backend.db import DbSession
 
 
 async def _get_action_settings(session: AsyncSession) -> ActSettings | None:
     return (await session.execute(select(ActSettings).limit(1))).scalars().first()
 
 
-async def is_action_layer_enabled(
-    session: AsyncSession = Depends(get_db_session),
-) -> bool:
-    """Return True only when both the env flag AND the DB toggle are on."""
-    if not ACTION_LAYER_ENABLED_ENV:
-        return False
+async def is_action_layer_enabled(session: DbSession) -> bool:
+    """Return True when the DB toggle is on (act_settings.enabled=True).
+    
+    The seed-demo endpoint and the /settings POST both set this flag.
+    No env-var gate — the DB is the single source of truth for the toggle.
+    """
     settings = await _get_action_settings(session)
     if settings is None:
         return False
-    return settings.enabled
+    return bool(settings.enabled)
 
 
 def disabled_response() -> JSONResponse:

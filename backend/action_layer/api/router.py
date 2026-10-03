@@ -46,7 +46,7 @@ from backend.action_layer.repository import CoreRepository
 from backend.action_layer.risk_engine import compute_what_if, RiskComponent, RiskResult
 from backend.action_layer.workflow import transition_item, WorkflowError
 from backend.api.deps import get_current_user
-from backend.db import get_db_session
+from backend.db import _db_session_dependency
 from backend.models import AuditLog
 
 router = APIRouter(prefix="/action", tags=["action-layer"])
@@ -194,8 +194,8 @@ async def action_layer_status(
 
 @router.get("/settings")
 async def get_settings(
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -217,8 +217,8 @@ async def get_settings(
 @router.post("/settings")
 async def update_settings(
     body: SettingsUpdate,
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -254,12 +254,10 @@ async def update_settings(
 
 @router.post("/seed-demo")
 async def seed_demo(
-    enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
+    session: AsyncSession = Depends(_db_session_dependency),
     current_user=Depends(get_current_user),
 ):
-    if not enabled:
-        return disabled_response()
+    # No enabled gate — this endpoint is the bootstrap that creates the enabled state.
     if current_user.role != "admin":
         raise HTTPException(403, "Admin required")
     from backend.action_layer.demo_seeder import seed_demonstration
@@ -273,8 +271,8 @@ async def seed_demo(
 @router.post("/derive")
 async def derive_items(
     force: bool = Query(default=False),
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -289,8 +287,8 @@ async def derive_items(
 
 @router.post("/derive-issues")
 async def derive_issues(
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -313,8 +311,8 @@ async def list_items(
     risk_band: str | None = Query(default=None),
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0),
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -346,8 +344,8 @@ async def list_items(
 @router.get("/items/{item_id}")
 async def get_item(
     item_id: int,
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -390,8 +388,8 @@ async def get_item(
 async def transition_item_endpoint(
     item_id: int,
     body: TransitionRequest,
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -416,8 +414,8 @@ async def transition_item_endpoint(
 @router.get("/items/{item_id}/draft")
 async def get_item_draft(
     item_id: int,
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -447,8 +445,8 @@ async def get_item_draft(
 async def item_what_if(
     item_id: int,
     body: WhatIfRequest,
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -484,8 +482,8 @@ async def item_what_if(
 
 @router.get("/issues")
 async def list_issues(
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -505,8 +503,8 @@ async def list_issues(
 @router.get("/issues/{issue_id}")
 async def get_issue(
     issue_id: int,
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -541,8 +539,8 @@ async def get_issue(
 @router.get("/initiatives")
 async def list_initiatives(
     stage: str | None = Query(default=None),
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -562,8 +560,8 @@ async def list_initiatives(
 @router.get("/initiatives/{initiative_id}")
 async def get_initiative(
     initiative_id: int,
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -595,8 +593,8 @@ async def get_initiative(
 @router.post("/initiatives")
 async def create_initiative(
     body: InitiativeCreate,
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -649,8 +647,8 @@ STAGE_ORDER = {"plan": 0, "do": 1, "check": 2, "act": 3}
 async def update_initiative(
     initiative_id: int,
     body: InitiativeUpdate,
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -725,8 +723,8 @@ async def update_initiative(
 @router.get("/agents/{agent_id}/profile")
 async def agent_profile(
     agent_id: str,
+    session: AsyncSession = Depends(_db_session_dependency),
     enabled: bool = Depends(is_action_layer_enabled),
-    session: AsyncSession = Depends(get_db_session),
     current_user=Depends(get_current_user),
 ):
     if not enabled:
@@ -746,3 +744,5 @@ async def agent_profile(
         as_of=as_of,
     )
     return JSONResponse({"enabled": True, "profile": profile})
+
+

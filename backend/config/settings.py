@@ -41,6 +41,7 @@ class Settings(BaseSettings):
 
     # Features
     embeddings_enabled: bool = False
+    action_layer_enabled: bool = False
 
     # CORS
     cors_allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
