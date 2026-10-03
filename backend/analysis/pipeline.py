@@ -142,6 +142,34 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
         raw, pt, ct = await chat_json(analysis_messages, FINAL_ANALYSIS_SCHEMA)
         logger.info("Final analysis LLM call: prompt=%d completion=%d", pt, ct)
 
+    # D14 fix: Augment LLM sentiment trajectory from incremental provisional state.
+    # The per-turn extractor captures sentiment on every turn. The final analysis LLM
+    # tends to return all-neutral for short/polite transcripts. If it does, fall back
+    # to the incremental trajectory which was built turn-by-turn.
+    llm_trajectory = raw.get("sentiment_trajectory", [])
+    non_neutral_count = sum(1 for pt_ in llm_trajectory if pt_.get("sentiment", "neutral") != "neutral")
+    all_neutral = (not llm_trajectory) or (non_neutral_count == 0)
+    if all_neutral:
+        # Load provisional state from conversation row (set during incremental extraction)
+        prov_conv = (await session.execute(
+            select(Conversation).where(Conversation.id == conversation_id)
+        )).scalar_one_or_none()
+        if prov_conv and prov_conv.provisional_state_json:
+            import json as _json
+            prov = prov_conv.provisional_state_json if isinstance(prov_conv.provisional_state_json, dict) \
+                else _json.loads(prov_conv.provisional_state_json)
+            prov_traj = prov.get("sentiment_trajectory", [])
+            if prov_traj:
+                logger.info(
+                    "D14: LLM returned all-neutral trajectory (%d pts); using incremental trajectory (%d pts)",
+                    len(llm_trajectory), len(prov_traj)
+                )
+                raw["sentiment_trajectory"] = prov_traj
+            else:
+                logger.debug("D14: Incremental trajectory also empty; keeping LLM result")
+        else:
+            logger.debug("D14: No provisional state found; keeping LLM result")
+
     # Gate commitments
     gated_commitments = gate_commitments(raw.get("commitments", []), turns_by_id)
 
