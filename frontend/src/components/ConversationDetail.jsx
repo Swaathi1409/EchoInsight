@@ -166,7 +166,8 @@ export default function ConversationDetail({ convId }) {
   if (!conv) return <div className="page"><p>Conversation not found.</p></div>;
 
   const analysis = conv.analysis;
-  const qa = analysis?.qa_result;
+  const displayAnalysis = versionAnalysis || analysis;
+  const qa = displayAnalysis?.qa_result;
   const scoreColor = !qa?.score ? 'var(--text-muted)' : qa.score >= 80 ? 'var(--green)' : qa.score >= 60 ? 'var(--amber)' : 'var(--red)';
   const isActive = conv.status === 'active' || conv.status === 'created';
 
@@ -195,6 +196,7 @@ export default function ConversationDetail({ convId }) {
     try {
       await api.reopenConversation(convId);
       await load();
+      setActiveTab('live');
     } catch (e) {
       alert(e.message);
     } finally {
@@ -345,7 +347,6 @@ export default function ConversationDetail({ convId }) {
 
       {/* ---- ANALYSIS TAB ---- */}
       {activeTab === 'analysis' && (() => {
-        const displayAnalysis = versionAnalysis || analysis;
         return displayAnalysis ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {selectedVersion != null && (
@@ -361,43 +362,43 @@ export default function ConversationDetail({ convId }) {
                   {displayAnalysis.provisional ? 'Provisional' : `v${displayAnalysis.version}`}
                 </span>
               </div>
-              <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)', marginBottom: 12 }}>{analysis.summary}</p>
+              <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)', marginBottom: 12 }}>{displayAnalysis.summary}</p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                {(analysis.reasons || []).map(r => <span key={r} className="badge badge-blue">{r.replace(/_/g, ' ')}</span>)}
+                {(displayAnalysis.reasons || []).map(r => <span key={r} className="badge badge-blue">{r.replace(/_/g, ' ')}</span>)}
               </div>
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 12 }}>
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>RESOLUTION</div>
-                  <span className={`badge ${analysis.resolution === 'resolved' ? 'badge-green' : analysis.resolution === 'unresolved' ? 'badge-red' : 'badge-amber'}`}>
-                    {analysis.resolution?.replace(/_/g, ' ')}
+                  <span className={`badge ${displayAnalysis.resolution === 'resolved' ? 'badge-green' : displayAnalysis.resolution === 'unresolved' ? 'badge-red' : 'badge-amber'}`}>
+                    {displayAnalysis.resolution?.replace(/_/g, ' ')}
                   </span>
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>CHURN RISK</div>
-                  <span className={`badge ${analysis.churn_risk === 'high' ? 'badge-red' : analysis.churn_risk === 'medium' ? 'badge-amber' : 'badge-green'}`}>
-                    {analysis.churn_risk} risk
+                  <span className={`badge ${displayAnalysis.churn_risk === 'high' ? 'badge-red' : displayAnalysis.churn_risk === 'medium' ? 'badge-amber' : 'badge-green'}`}>
+                    {displayAnalysis.churn_risk} risk
                   </span>
                 </div>
-                {analysis.false_resolution && (
+                {displayAnalysis.false_resolution && (
                   <div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>FALSE RESOLUTION</div>
                     <span className="badge badge-red"><AlertTriangle size={10} /> Detected</span>
                   </div>
                 )}
               </div>
-              {(analysis.churn_signals || []).length > 0 && (
+              {(displayAnalysis.churn_signals || []).length > 0 && (
                 <div style={{ padding: '8px 12px', background: 'var(--red-bg)', borderRadius: 6 }}>
                   <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600, marginBottom: 4 }}>Churn Signals</div>
-                  {analysis.churn_signals.map((s, i) => <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)' }}>• {s}</div>)}
+                  {displayAnalysis.churn_signals.map((s, i) => <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)' }}>• {s}</div>)}
                 </div>
               )}
             </div>
 
             {/* Sentiment timeline */}
-            {(analysis.sentiment_trajectory || []).length > 0 && (
+            {(displayAnalysis.sentiment_trajectory || []).length > 0 && (
               <div className="card">
                 <div className="card-header"><span className="card-title">Sentiment Trajectory</span></div>
-                <SentimentTimeline trajectory={analysis.sentiment_trajectory} />
+                <SentimentTimeline trajectory={displayAnalysis.sentiment_trajectory} />
                 <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
                   {Object.entries(SENTIMENT_COLOR).map(([s, c]) => (
                     <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
@@ -477,13 +478,13 @@ export default function ConversationDetail({ convId }) {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Commitment Ledger</span>
-            {analysis ? (
+            {displayAnalysis ? (
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>From final analysis</span>
             ) : (
               <span style={{ fontSize: 12, color: 'var(--amber)' }}>Provisional</span>
             )}
           </div>
-          <CommitmentLedger commitments={analysis?.commitments || conv.provisional_state?.open_commitments || []} />
+          <CommitmentLedger commitments={displayAnalysis?.commitments || conv.provisional_state?.open_commitments || []} />
         </div>
       )}
 

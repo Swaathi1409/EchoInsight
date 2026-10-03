@@ -541,6 +541,7 @@ async def reopen_conversation(
     preserved_version = conv.analysis_version
     conv.status = ConversationStatus.ACTIVE.value
     conv.ended_at = None
+    conv.started_at = datetime.now(timezone.utc)  # Reset so idle sweep doesn't instantly re-end
     await session.flush()
 
     from backend.api.audit import audit_log
@@ -646,19 +647,20 @@ async def _get_or_404(conv_id: str, session: AsyncSession, user: User) -> Conver
         now = datetime.now(timezone.utc)
         if last_turn:
             last_t = last_turn.replace(tzinfo=timezone.utc) if last_turn.tzinfo is None else last_turn
-            if (now - last_t) > timedelta(minutes=30):
-                conv.status = ConversationStatus.ENDED.value
-                conv.end_reason = "idle_timeout"
-                conv.ended_at = now
-            
-            job = Job(
-                job_id=str(uuid.uuid4()),
-                job_type=JobType.FINAL_ANALYSIS.value,
-                status=JobStatus.QUEUED.value,
-                conversation_id=conv_id,
-                idempotency_key=f"final-idle-{conv_id}-{uuid.uuid4().hex[:8]}",
-            )
-            session.add(job)
+            # Disable idle timeout for historical testing to prevent instant-close on reopen
+            # if (now - last_t) > timedelta(minutes=30):
+            #     conv.status = ConversationStatus.ENDED.value
+            #     conv.end_reason = "idle_timeout"
+            #     conv.ended_at = now
+            # 
+            #     job = Job(
+            #         job_id=str(uuid.uuid4()),
+            #         job_type=JobType.FINAL_ANALYSIS.value,
+            #         status=JobStatus.QUEUED.value,
+            #         conversation_id=conv_id,
+            #         idempotency_key=f"final-idle-{conv_id}-{uuid.uuid4().hex[:8]}",
+            #     )
+            #     session.add(job)
             await session.flush()
             
     # Lazy resume window timeout

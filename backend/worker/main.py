@@ -85,20 +85,25 @@ async def poll_loop() -> None:
                     last_turn = (await session.execute(
                         select(Turn.timestamp).where(Turn.conversation_id == conv.id).order_by(Turn.seq.desc()).limit(1)
                     )).scalar_one_or_none()
+                    # Use most recent activity: max of turn timestamp vs conv started_at
+                    # This prevents immediately re-closing freshly reopened conversations
+                    started_t = conv.started_at.replace(tzinfo=timezone.utc) if conv.started_at and conv.started_at.tzinfo is None else (conv.started_at or now)
                     if last_turn:
                         last_t = last_turn.replace(tzinfo=timezone.utc) if last_turn.tzinfo is None else last_turn
-                        if last_t < idle_threshold:
-                        logger.info("Sweeping idle conversation %s", conv.id[:8])
-                        conv.status = ConversationStatus.ENDED.value
-                        conv.end_reason = "idle_timeout"
-                        conv.ended_at = now
-                        session.add(Job(
-                            job_id=str(uuid.uuid4()),
-                            job_type=JobType.FINAL_ANALYSIS.value,
-                            status=JobStatus.QUEUED.value,
-                            conversation_id=conv.id,
-                            idempotency_key=f"final-idle-{conv.id}-{uuid.uuid4().hex[:8]}",
-                        ))
+                        # Use whichever is more recent: last turn or when this session started
+                        effective_last_active = max(last_t, started_t)
+                        if effective_last_active < idle_threshold:
+                            logger.info("Sweeping idle conversation %s", conv.id[:8])
+                            conv.status = ConversationStatus.ENDED.value
+                            conv.end_reason = "idle_timeout"
+                            conv.ended_at = now
+                            session.add(Job(
+                                job_id=str(uuid.uuid4()),
+                                job_type=JobType.FINAL_ANALYSIS.value,
+                                status=JobStatus.QUEUED.value,
+                                conversation_id=conv.id,
+                                idempotency_key=f"final-idle-{conv.id}-{uuid.uuid4().hex[:8]}",
+                            ))
                 
                 closed_threshold = now - timedelta(hours=72)
                 ended_convs = (await session.execute(

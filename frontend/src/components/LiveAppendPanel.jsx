@@ -122,7 +122,12 @@ export default function LiveAppendPanel({ conv, onTurnAdded }) {
       textRef.current?.focus();
       onTurnAdded && onTurnAdded(resp);
     } catch (e) {
-      setError(e.message || 'Failed to send turn');
+      const msg = e.message || 'Failed to send turn';
+      if (msg.includes('409') || msg.toLowerCase().includes('ended') || msg.toLowerCase().includes('conflict')) {
+        setError('Conversation status mismatch — click Refresh in the header to reload.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setSending(false);
     }
