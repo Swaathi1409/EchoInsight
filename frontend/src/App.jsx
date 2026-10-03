@@ -59,20 +59,24 @@ export default function App() {
           <p>Conversation Intelligence</p>
         </div>
         <nav className="sidebar-nav">
+          <div className="nav-section-label">Navigation</div>
           {navItems.map(n => (
             <a key={n.label} href={n.href} style={{ textDecoration: 'none' }}>
               <div className={`nav-item${n.active ? ' active' : ''}`}>
-                <n.icon size={16} /> {n.label}
+                <n.icon size={15} />
+                {n.label}
               </div>
             </a>
           ))}
         </nav>
         <div className="sidebar-footer">
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, padding: '0 12px' }}>
-            Signed in as <strong>{role}</strong>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, padding: '0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className={`badge ${role === 'admin' ? 'badge-purple' : role === 'supervisor' ? 'badge-blue' : 'badge-gray'}`} style={{ fontSize: 10 }}>
+              {role}
+            </span>
           </div>
-          <button className="nav-item" onClick={logout} style={{ color: 'var(--red)' }}>
-            <LogOut size={16} /> Sign Out
+          <button className="nav-item" onClick={logout} style={{ color: 'var(--red)', width: '100%' }}>
+            <LogOut size={15} /> Sign Out
           </button>
         </div>
       </aside>
