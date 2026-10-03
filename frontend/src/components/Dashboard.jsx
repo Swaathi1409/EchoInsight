@@ -195,6 +195,9 @@ export default function Dashboard({ onSelectConv }) {
   const total = convs.length;
   const ended = convs.filter(c => c.status === 'ended').length;
   const active = convs.filter(c => c.status === 'active').length;
+  // D3: analyzed means a final analysis exists (analysis_version > 0)
+  const analyzed = convs.filter(c => (c.analysis_version || 0) > 0).length;
+  const pendingAnalysis = ended - convs.filter(c => c.status === 'ended' && (c.analysis_version || 0) > 0).length;
 
   const withQA = convs.filter(c => c.qa_score != null);
   const avgQA = withQA.length
@@ -275,10 +278,10 @@ export default function Dashboard({ onSelectConv }) {
     <div className="page">
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Conversation Intelligence</h1>
+      <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>EchoInsight Overview</h2>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-            {total} conversations — last refreshed {new Date().toLocaleTimeString()}
+            {total} conversations — {active} active — last refreshed {new Date().toLocaleTimeString()}
           </p>
         </div>
         <button className="btn btn-ghost btn-sm" onClick={() => loadAll(true)} disabled={refreshing}
@@ -292,10 +295,10 @@ export default function Dashboard({ onSelectConv }) {
 
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
-        <KPICard icon={<Activity size={20} color="var(--accent)" />} label="Total Analyzed" value={total}
-          sub={`${active} active`} color="var(--accent)" />
+        <KPICard icon={<Activity size={20} color="var(--accent)" />} label="Total Analyzed" value={analyzed}
+          sub={`${active} active${pendingAnalysis > 0 ? ` · ${pendingAnalysis} pending analysis` : ''}`} color="var(--accent)" />
         <KPICard icon={<CheckCircle size={20} color="var(--green)" />} label="Resolved" value={resolved}
-          sub={total ? `${((resolved / total) * 100).toFixed(0)}% of all` : ''} color="var(--green)" />
+          sub={analyzed ? `${((resolved / analyzed) * 100).toFixed(0)}% of analyzed` : ''} color="var(--green)" />
         <KPICard icon={<BarChart2 size={20} color="var(--accent)" />} label="Avg QA Score" value={avgQA}
           sub={`${withQA.length} scored`} color="var(--accent)" />
         <KPICard icon={<AlertCircle size={20} color="var(--amber)" />} label="Open Commitments" value={openCommitCount}

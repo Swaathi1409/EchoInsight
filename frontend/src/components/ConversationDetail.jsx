@@ -23,24 +23,31 @@ function QAItem({ item }) {
     not_applicable: <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>N/A</span>,
     needs_review: <AlertTriangle size={14} color="var(--amber)" />,
   };
+  // D9: only show verification badge for items that were actually verified (not N/A)
+  const isNA = item.result === 'not_applicable';
   return (
     <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 10, marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => setOpen(o => !o)}>
         {icons[item.result] || icons.needs_review}
         <span style={{ flex: 1, fontSize: 13 }}>{(item.display || item.item_id)?.replace(/_/g, ' ')}</span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{((item.confidence || 0) * 100).toFixed(0)}%</span>
-        {item.verification_result && (
+        {!isNA && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{((item.confidence || 0) * 100).toFixed(0)}%</span>}
+        {/* D9: only show verification badge for verified items, not N/A */}
+        {!isNA && item.verification_result && (
           <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3,
             background: item.verification_result === 'supported' ? 'var(--green-bg)' : item.verification_result === 'not_supported' ? 'var(--red-bg)' : 'var(--amber-bg)',
             color: item.verification_result === 'supported' ? 'var(--green)' : item.verification_result === 'not_supported' ? 'var(--red)' : 'var(--amber)',
           }}>verified: {item.verification_result}</span>
+        )}
+        {isNA && item.explanation && (
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            title={item.explanation}>not applicable</span>
         )}
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </div>
       {open && (
         <div style={{ marginTop: 8, paddingLeft: 24 }}>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>{item.explanation}</p>
-          {(item.quote || (item.evidence || []).map(e => e.quote).join(' ')) && (
+          {!isNA && (item.quote || (item.evidence || []).map(e => e.quote).join(' ')) && (
             <blockquote style={{ borderLeft: '2px solid var(--accent)', paddingLeft: 10, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
               "{item.quote || (item.evidence || []).map(e => e.quote).join(' | ')}"
             </blockquote>
@@ -135,7 +142,7 @@ export default function ConversationDetail({ convId }) {
 
   // Reviewer workflow
   const [reviews, setReviews] = useState([]);
-  const [reviewVerdict, setReviewVerdict] = useState('approved');
+  const [reviewVerdict, setReviewVerdict] = useState(''); // D12: no default; user must choose
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewMsg, setReviewMsg] = useState('');
@@ -248,12 +255,14 @@ export default function ConversationDetail({ convId }) {
   };
 
   const submitReview = async () => {
+    if (!reviewVerdict) { setReviewMsg('Error: Please select a verdict.'); return; }
     setReviewSubmitting(true);
     setReviewMsg('');
     try {
       await api.createReview(convId, reviewVerdict, reviewNotes);
       setReviewMsg('Review submitted.');
       setReviewNotes('');
+      setReviewVerdict('');
       const updated = await api.getReviews(convId);
       setReviews(updated);
     } catch (e) {
@@ -523,34 +532,52 @@ export default function ConversationDetail({ convId }) {
           <div className="card">
             <div className="card-header"><span className="card-title">Submit Review</span></div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
-              <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Verdict</label>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
+                Verdict <span style={{ color: 'var(--red)' }}>*</span>
+              </label>
               <select value={reviewVerdict} onChange={e => setReviewVerdict(e.target.value)}
-                style={{ fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '5px 10px', color: 'var(--text-primary)' }}>
+                style={{ fontSize: 13, background: 'var(--bg-secondary)', borderRadius: 4, padding: '5px 10px',
+                  border: `1px solid ${!reviewVerdict ? 'var(--amber)' : 'var(--border-subtle)'}`,
+                  color: reviewVerdict ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                <option value="" disabled>Select a verdict...</option>
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
                 <option value="needs_rework">Needs Rework</option>
               </select>
             </div>
             <textarea value={reviewNotes} onChange={e => setReviewNotes(e.target.value)}
-              placeholder="Notes (optional)…"
+              placeholder="Notes (optional)..."
               rows={3}
               style={{ width: '100%', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '8px 10px', color: 'var(--text-primary)', resize: 'vertical', boxSizing: 'border-box', marginBottom: 10 }} />
-            <button className="btn btn-primary btn-sm" onClick={submitReview} disabled={reviewSubmitting}>
-              {reviewSubmitting ? 'Submitting…' : 'Submit Review'}
+            <button className="btn btn-primary btn-sm" onClick={submitReview}
+              disabled={reviewSubmitting || !reviewVerdict}
+              title={!reviewVerdict ? 'Please select a verdict before submitting' : ''}>
+              {reviewSubmitting ? 'Submitting...' : 'Submit Review'}
             </button>
+            {!reviewVerdict && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--amber)' }}>A verdict is required.</span>}
             {reviewMsg && <span style={{ marginLeft: 12, fontSize: 12, color: reviewMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{reviewMsg}</span>}
           </div>
 
           {/* Review history */}
           <div className="card">
-            <div className="card-header"><span className="card-title">Review History</span><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{reviews.length} reviews</span></div>
+            <div className="card-header">
+              <span className="card-title">Review History</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{reviews.length} reviews</span>
+            </div>
             {reviews.length === 0 ? (
               <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>No reviews yet.</p>
             ) : reviews.map(r => (
               <div key={r.review_id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span className={`badge ${r.verdict === 'approved' ? 'badge-green' : r.verdict === 'rejected' ? 'badge-red' : 'badge-amber'}`}>{r.verdict}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(r.created_at).toLocaleString()}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                  <span className={`badge ${r.verdict === 'approved' ? 'badge-green' : r.verdict === 'rejected' ? 'badge-red' : 'badge-amber'}`}>
+                    {r.verdict.replace(/_/g, ' ')}
+                  </span>
+                  {r.reviewer_id && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Reviewer #{r.reviewer_id}</span>}
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {new Date(r.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {', '}
+                    {new Date(r.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
                 {r.notes && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>{r.notes}</p>}
               </div>
@@ -561,6 +588,7 @@ export default function ConversationDetail({ convId }) {
     </div>
   );
 }
+
 
 function ResolutionBadge({ r }) {
   const map = { resolved: 'badge-green', partially_resolved: 'badge-amber', unresolved: 'badge-red', pending: 'badge-amber', escalated: 'badge-purple', unknown: 'badge-gray' };
