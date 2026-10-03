@@ -146,7 +146,7 @@ function CopyButton({ text }) {
   );
 }
 
-function AuditDetailPanel({ log, onClose }) {
+function AuditDetailModal({ log, onClose }) {
   if (!log) return null;
   // Filter null/undefined values from details to reduce noise
   const details = log.details || {};
@@ -156,65 +156,77 @@ function AuditDetailPanel({ log, onClose }) {
   const nullKeys = Object.keys(details).filter(k => details[k] === null || details[k] === undefined);
   return (
     <div style={{
-      background: 'var(--bg-secondary)',
-      border: '1px solid var(--border-accent)',
-      borderRadius: 'var(--radius)',
-      padding: '16px 20px',
-      margin: '0 0 2px 0',
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '10px 24px',
-      position: 'relative',
-      animation: 'slideFadeIn 0.18s ease',
-    }}>
-      <button onClick={onClose} title="Close"
-        style={{ position: 'absolute', top: 10, right: 12, background: 'none', border: 'none',
-          cursor: 'pointer', fontSize: 16, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
+      position: 'fixed', inset: 0,
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1000,
+      padding: 20
+    }} onClick={onClose}>
+      <div style={{
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-accent)',
+        borderRadius: 'var(--radius)',
+        padding: '24px 28px',
+        width: '100%',
+        maxWidth: 540,
+        position: 'relative',
+        animation: 'slideFadeIn 0.18s ease',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+      }} onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} title="Close"
+          style={{ position: 'absolute', top: 14, right: 16, background: 'none', border: 'none',
+            cursor: 'pointer', fontSize: 20, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
 
-      {/* Left column */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Action</div>
-          <span className="badge badge-blue">{ACTION_LABELS[log.action] || log.action.replace(/_/g, ' ')}</span>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Time</div>
-          <div style={{ fontSize: 13 }}>{formatAuditDate(log.created_at)}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>User</div>
-          <div style={{ fontSize: 13 }}>{log.user_id != null ? `#${log.user_id}` : '—'}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Resource</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{log.resource_type}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <code style={{ fontSize: 11, wordBreak: 'break-all' }}>{log.resource_id || '—'}</code>
-            {log.resource_id && <CopyButton text={log.resource_id} />}
-          </div>
-        </div>
-      </div>
+        <h3 style={{ margin: '0 0 20px 0', fontSize: 16, fontWeight: 700 }}>Audit Entry Details</h3>
 
-      {/* Right column: Details */}
-      <div>
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Details</div>
-        {Object.keys(filteredDetails).length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {Object.entries(filteredDetails).map(([k, v]) => (
-              <div key={k} className="insight-row" style={{ paddingTop: 4, paddingBottom: 4 }}>
-                <span className="insight-label" style={{ width: 110, fontSize: 10 }}>{k.replace(/_/g, ' ')}</span>
-                <code style={{ fontSize: 11 }}>{typeof v === 'object' ? JSON.stringify(v) : String(v)}</code>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+          {/* Left column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Action</div>
+              <span className="badge badge-blue">{ACTION_LABELS[log.action] || log.action.replace(/_/g, ' ')}</span>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Time</div>
+              <div style={{ fontSize: 13 }}>{formatAuditDate(log.created_at)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>User</div>
+              <div style={{ fontSize: 13 }}>{log.user_id != null ? `#${log.user_id}` : '—'}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Resource</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{log.resource_type}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <code style={{ fontSize: 11, wordBreak: 'break-all' }}>{log.resource_id || '—'}</code>
+                {log.resource_id && <CopyButton text={log.resource_id} />}
               </div>
-            ))}
+            </div>
           </div>
-        ) : (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No additional details recorded.</div>
-        )}
-        {nullKeys.length > 0 && (
-          <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)' }}>
-            Fields not set: {nullKeys.map(k => k.replace(/_/g, ' ')).join(', ')} — this is expected for conversations created via Live Demo.
+
+          {/* Right column: Details */}
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Details</div>
+            {Object.keys(filteredDetails).length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {Object.entries(filteredDetails).map(([k, v]) => (
+                  <div key={k} className="insight-row" style={{ paddingTop: 4, paddingBottom: 4 }}>
+                    <span className="insight-label" style={{ width: 'auto', marginRight: 8, fontSize: 10 }}>{k.replace(/_/g, ' ')}</span>
+                    <code style={{ fontSize: 11, textAlign: 'right', flex: 1 }}>{typeof v === 'object' ? JSON.stringify(v) : String(v)}</code>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No additional details recorded.</div>
+            )}
+            {nullKeys.length > 0 && (
+              <div style={{ marginTop: 16, fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                <span style={{ fontWeight: 600 }}>Unset fields:</span> {nullKeys.map(k => k.replace(/_/g, ' ')).join(', ')}
+                <br/>(Expected for Live Demo creation)
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -260,55 +272,37 @@ function AuditLogTable() {
             <tbody>
               {logs.length === 0 ? (
                 <tr><td colSpan={5} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>No audit entries yet.</td></tr>
-              ) : logs.map(l => {
-                const isOpen = selectedLog?.id === l.id;
-                return (
-                  <Fragment key={l.id}>
-                    <tr onClick={() => setSelectedLog(isOpen ? null : l)}
-                      style={{
-                        borderBottom: isOpen ? 'none' : '1px solid var(--border-subtle)',
-                        cursor: 'pointer',
-                        background: isOpen ? 'rgba(59,130,246,0.05)' : '',
-                        transition: 'background 0.15s',
-                      }}
-                      onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
-                      onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = ''; }}>
-                      <td style={{ padding: '8px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                        {formatAuditDate(l.created_at)}
-                      </td>
-                      <td style={{ padding: '8px 12px' }}>
-                        <span className="badge badge-blue" style={{ whiteSpace: 'nowrap' }}>
-                          {ACTION_LABELS[l.action] || l.action.replace(/_/g, ' ')}
-                        </span>
-                      </td>
-                      <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>
-                        {l.user_id != null ? `#${l.user_id}` : '—'}
-                      </td>
-                      <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{l.resource_type} / </span>
-                        <code style={{ fontSize: 11 }}>{l.resource_id ? l.resource_id.slice(0, 8) + '…' : '—'}</code>
-                        {l.resource_id && <CopyButton text={l.resource_id} />}
-                      </td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                        <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 500 }}>
-                          {isOpen ? '▲ Close' : '▼ Expand'}
-                        </span>
-                      </td>
-                    </tr>
-                    {isOpen && (
-                      <tr key={`${l.id}-detail`}>
-                        <td colSpan={5} style={{ padding: '0 8px 8px 8px', borderBottom: '1px solid var(--border-subtle)' }}>
-                          <AuditDetailPanel log={l} onClose={() => setSelectedLog(null)} />
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
+              ) : logs.map(l => (
+                <tr key={l.id} onClick={() => setSelectedLog(l)}
+                  style={{ borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                  onMouseLeave={e => e.currentTarget.style.background = ''}>
+                  <td style={{ padding: '8px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                    {formatAuditDate(l.created_at)}
+                  </td>
+                  <td style={{ padding: '8px 12px' }}>
+                    <span className="badge badge-blue" style={{ whiteSpace: 'nowrap' }}>
+                      {ACTION_LABELS[l.action] || l.action.replace(/_/g, ' ')}
+                    </span>
+                  </td>
+                  <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>
+                    {l.user_id != null ? `#${l.user_id}` : '—'}
+                  </td>
+                  <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{l.resource_type} / </span>
+                    <code style={{ fontSize: 11 }}>{l.resource_id ? l.resource_id.slice(0, 8) + '…' : '—'}</code>
+                    {l.resource_id && <CopyButton text={l.resource_id} />}
+                  </td>
+                  <td style={{ padding: '8px 12px', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-muted)', fontSize: 11, textAlign: 'right' }}>
+                    <span style={{ fontStyle: 'italic' }}>Click to view details</span>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
+      {selectedLog && <AuditDetailModal log={selectedLog} onClose={() => setSelectedLog(null)} />}
     </div>
   );
 }
