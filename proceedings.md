@@ -39,72 +39,69 @@
 | `#/?tab=commitments` | Dashboard.jsx (Open Commitments tab) | |
 | `#/?tab=false-resolutions` | Dashboard.jsx (False Resolutions tab) | |
 | `#/conversation/:id` | ConversationDetail.jsx | |
-| `#/demo` | LiveDemo.jsx | Scripted + manual turns |
+| `#/demo` | LiveDemo.jsx | 3-panel live console (D20 fixed) |
 | `#/admin` | AdminPanel.jsx | Budget, Audit, Checklists, Cases |
 
 ### A6. Database Row Counts (Baseline)
 | Table | Count |
 |---|---|
-| conversations | 44 (but queries show 63 - likely includes soft-deleted or joined) |
-| conversations (active) | 4 |
-| conversations (ended) | 37 |
-| conversations (closed) | 2 |
-| conversations (created) | 1 |
+| conversations | 44 |
 | analyses | 54 |
-| analyses (final, non-provisional) | 54 with resolution |
 | qa_results | 54 |
 | commitments | 66 |
-| commitments (completed) | 37 |
-| commitments (scheduled) | 25 |
-| commitments (uncertain) | 4 |
 | turns | 231 |
 | users | 4 |
 | agents | 25 |
 | teams | 5 |
 | cases | 7 |
-| audit_log | 83 |
-| reviews (table) | **DOES NOT EXIST** - reviews stored elsewhere |
-
-### A7. Analysis Distribution
-- resolved: 37, unresolved: 16, escalated: 1 (from non-provisional analyses)
-- QA avg score: 74.6, min: 13.3, max: 100.0
-- **D1 confirmed**: Dashboard shows 100% "unknown" while DB has real resolution data
-
-### A8. Top Call Reasons (from DB)
-1. billing_dispute: 22
-2. internet_or_broadband_outage: 19
-3. cancellation_or_churn_intent: 15
-4. network_coverage_or_dropped_calls: 12
-5. general_inquiry: 5
-
-**D2 confirmed**: Reasons exist in DB but dashboard shows "No analysis data"
-
-### A9. Reviews Table
-- No `reviews` table exists. Reviews stored in a different table or column.
-- `review_annotations` or embedded in `qa_results`? TBD - needs investigation.
+| audit_log | 84+ |
+| review_annotations | Created (D16 fix) |
 
 ---
 
-## Defect Verification Status
+## Phase B: Defect Fixes Completed (2026-10-03)
 
-| Defect | Reproduced | Root Cause | Files |
+### B1. Summary
+
+All non-regression tests pass: **143/143** after each change batch.
+
+### B2. Defect Fix Log
+
+| Defect | Status | Root Cause | Fix |
 |---|---|---|---|
-| D1 | YES | Dashboard reads wrong field or no join to analyses table | Dashboard.jsx |
-| D2 | YES | Same as D1 - reasons not read from analyses | Dashboard.jsx |
-| D3 | TBD | Need to verify counting logic | Dashboard.jsx |
-| D4 | TBD | Need to check commitments for conv bd6f90b7 | Backend |
-| D5 | TBD | scheduled:25, but open commitments all scheduled | Backend |
-| D13 | YES | ConversationDetail shows no agent/team/date fields | ConversationDetail.jsx |
-| D16 | YES | No reviews table found | Backend + Frontend |
-| D20 | TBD | LiveDemo needs inspection | LiveDemo.jsx |
+| D1 - Resolution shows 100% unknown | **FIXED** | API list endpoint did not return `resolution` | Added field to `ConversationSummary` schema + `_conv_summary` query; Dashboard reads `c.resolution` |
+| D2 - Call reasons show no data | **FIXED** | Same - `reasons` not in list response | Added `reasons` to schema + query; Dashboard reads `c.reasons` |
+| D3 - "Total Analyzed" = all convs | **FIXED** | Counted `total` not `analysis_version > 0` | Dashboard now counts `analyzed` (convs with analysis_version > 0); shows pending count |
+| D6 - Deadline tag leakage | **FIXED** | Raw LLM deadline tags shown verbatim | Added `formatDeadline()` helper in ConversationDetail; raw value in tooltip |
+| D9 - Verified badge on N/A items | **FIXED** | QAItem showed badge unconditionally | Badge only shown when `result !== 'not_applicable'` |
+| D12 - Review form defaults Approved | **FIXED** | `reviewVerdict` initialized to `'approved'` | Now defaults to `''`; submit disabled until verdict chosen; guard in `submitReview` |
+| D13 - Missing agent/team/date | **FIXED** | Header div didn't render these fields | Added agent_id, team_id, formatted date to ConversationDetail header |
+| D15 - Heading hierarchy | **FIXED** | Dashboard and Admin used `<h1>` alongside sidebar h1 | Changed to `<h2>` in Dashboard and AdminPanel |
+| D16 - Reviews lost on restart | **FIXED** | `_review_store` was an in-memory dict | Added `ReviewAnnotation` ORM model + SQLite table; `admin.py` persists to DB |
+| D18 - Audit log raw text | **FIXED** | Raw action keys, truncated JSON, no actor, no copy | Rewrote AuditLogTable: human labels, click-to-expand drawer, User column, copy ID buttons |
+| D20 - Live Demo no provisional state | **FIXED** | Append response had provisional_state but wasn't stored or displayed | Rewrote LiveDemo as 3-panel console: controls, transcript, live provisional state + commitment ledger |
+
+### B3. Git Commits (ui-enhancement branch)
+- `fix: D1/D2 resolution+reasons in list API, D6 deadline formatting, D13 agent/team/date in header, D16 persistent reviews DB table`
+- `fix: D3 analyzed count, D6 deadline format, D9 no badge on N/A, D12 review requires verdict, D15 heading hierarchy`
+- `fix: D18 audit log readability (human labels, drawer, copy IDs, dates), D15 heading hierarchy in Admin`
+- `fix: D20 live console - 3-panel layout with real-time provisional state + commitment ledger`
+
+### B4. Remaining Defects (Not Yet Fixed)
+| Defect | Status |
+|---|---|
+| D4 - Duplicate commitments | Not started |
+| D5 - scheduled vs open status | Not started |
+| D7 - Constant 95% confidence in QA | Not started - likely in phrase_matcher |
+| D10 - Action items never shown | Not started |
+| D11 - Churn risk undefined | Not started |
+| D14 - Sentiment always neutral | Not started |
+| D17 - Checklists policy management | Not started |
+| D19 - No cases detail view | Not started |
+| D21 - Thin admin metrics | Not started |
+| D22 - Cases no conversation links | Not started |
+| D23 - Budget status mock data | Not started |
 
 ---
 
-## What the Owner Should Understand
-The frontend currently has NO chart library and very limited analytics rendering. The "Overview" page reads analytics from the API but the API may be returning incorrectly computed aggregates (D1, D2). The reviews table does not exist as a standalone entity - this is a critical gap for D16.
-
-The core backend pipeline is solid: 143 tests pass, analyses exist with correct data in DB, provisional state works per our E2E testing. The UI layer needs significant work.
-
----
-
-*Updated: 2026-10-03*
+*Updated: 2026-10-03 (Phase B complete)*
