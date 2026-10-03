@@ -333,17 +333,11 @@ export default function ConversationDetail({ convId }) {
         )}
       </div>
 
-      {/* Sub-tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border-subtle)' }}>
+      {/* Sub-tabs — uses design system .tabs / .tab-btn */}
+      <div className="tabs">
         {TABS.map(([id, label]) => (
-          <button key={id} onClick={() => setActiveTab(id)}
-            style={{
-              padding: '7px 14px', fontSize: 13, fontWeight: activeTab === id ? 700 : 400,
-              color: activeTab === id ? 'var(--accent)' : 'var(--text-muted)',
-              background: 'none', border: 'none',
-              borderBottom: activeTab === id ? '2px solid var(--accent)' : '2px solid transparent',
-              cursor: 'pointer', marginBottom: -1,
-            }}>
+          <button key={id} className={`tab-btn${activeTab === id ? ' active' : ''}`}
+            onClick={() => setActiveTab(id)}>
             {label}
           </button>
         ))}
@@ -351,27 +345,34 @@ export default function ConversationDetail({ convId }) {
 
       {/* ---- TRANSCRIPT TAB ---- */}
       {activeTab === 'transcript' && (
-        <div className="card" style={{ maxHeight: 620, overflowY: 'auto' }}>
+        <div className="card" style={{ maxHeight: 640, overflowY: 'auto', padding: '16px' }}>
+          <div className="card-header" style={{ marginBottom: 14 }}>
+            <span className="card-title">Transcript</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{(conv.turns || []).length} turns</span>
+          </div>
           <div className="transcript">
             {(conv.turns || []).map(t => (
               <div key={t.turn_id} id={`turn-${t.turn_id}`}
-                className={`turn turn-${t.speaker}`}
-                style={{ outline: highlightTurn === t.turn_id ? '2px solid var(--accent)' : 'none', borderRadius: 6, transition: 'outline 0.2s' }}>
+                className={`turn turn-${t.speaker}${highlightTurn === t.turn_id ? ' highlighted' : ''}`}
+                style={{ borderRadius: 8, padding: '4px 0', transition: 'all 0.25s' }}>
                 <div className="turn-avatar">
                   {t.speaker === 'agent' ? <Headphones size={12} /> : <User size={12} />}
                 </div>
                 <div className="turn-body">
                   <div className="turn-meta">
-                    <strong style={{ textTransform: 'capitalize' }}>{t.speaker}</strong>
-                    <span>{t.turn_id}</span>
-                    {t.timestamp && <span>{new Date(t.timestamp).toLocaleTimeString()}</span>}
+                    <strong style={{ textTransform: 'capitalize', color: t.speaker === 'agent' ? 'var(--accent-hover)' : 'var(--purple)', fontSize: 12 }}>{t.speaker}</strong>
+                    <code style={{ fontSize: 10, background: 'transparent', color: 'var(--text-muted)', padding: 0 }}>{t.turn_id}</code>
+                    {t.timestamp && <span style={{ fontSize: 10 }}>{new Date(t.timestamp).toLocaleTimeString()}</span>}
                   </div>
                   <div className="turn-text">{t.text_redacted}</div>
                 </div>
               </div>
             ))}
             {(conv.turns || []).length === 0 && (
-              <p style={{ color: 'var(--text-muted)', fontSize: 13, padding: 20, textAlign: 'center' }}>No turns yet.</p>
+              <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)' }}>
+                <Clock size={24} style={{ marginBottom: 8, opacity: 0.5 }} />
+                <p style={{ fontSize: 13 }}>No turns recorded yet.</p>
+              </div>
             )}
           </div>
         </div>
@@ -395,36 +396,54 @@ export default function ConversationDetail({ convId }) {
             <div className="card">
               <div className="card-header">
                 <span className="card-title">Analysis</span>
-                <span className={`badge ${displayAnalysis.provisional ? 'badge-amber' : 'badge-green'}`}>
-                  {displayAnalysis.provisional ? 'Provisional' : `v${displayAnalysis.version}`}
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <span className={`badge ${displayAnalysis.provisional ? 'badge-amber' : 'badge-green'}`}>
+                    {displayAnalysis.provisional ? 'Provisional' : `v${displayAnalysis.version}`}
+                  </span>
+                  {displayAnalysis.model && (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{displayAnalysis.model}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Summary text */}
+              <p style={{ fontSize: 13, lineHeight: 1.75, color: 'var(--text-secondary)', marginBottom: 14,
+                padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 8,
+                borderLeft: '3px solid var(--accent-border)' }}>
+                {displayAnalysis.summary}
+              </p>
+
+              {/* Call reasons */}
+              {(displayAnalysis.reasons || []).length > 0 && (
+                <div className="insight-row">
+                  <span className="insight-label">Call Reasons</span>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {(displayAnalysis.reasons || []).map(r => <span key={r} className="reason-chip">{r.replace(/_/g, ' ')}</span>)}
+                  </div>
+                </div>
+              )}
+
+              {/* Resolution / Churn / False Resolution */}
+              <div className="insight-row">
+                <span className="insight-label">Resolution</span>
+                <span className={`badge ${displayAnalysis.resolution === 'resolved' ? 'badge-green' : displayAnalysis.resolution === 'unresolved' ? 'badge-red' : 'badge-amber'}`}>
+                  {displayAnalysis.resolution?.replace(/_/g, ' ')}
                 </span>
               </div>
-              <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)', marginBottom: 12 }}>{displayAnalysis.summary}</p>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                {(displayAnalysis.reasons || []).map(r => <span key={r} className="badge badge-blue">{r.replace(/_/g, ' ')}</span>)}
-              </div>
-              <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 12 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>RESOLUTION</div>
-                  <span className={`badge ${displayAnalysis.resolution === 'resolved' ? 'badge-green' : displayAnalysis.resolution === 'unresolved' ? 'badge-red' : 'badge-amber'}`}>
-                    {displayAnalysis.resolution?.replace(/_/g, ' ')}
+              {displayAnalysis.churn_risk && (
+                <div className="insight-row">
+                  <span className="insight-label">Churn Risk</span>
+                  <span className={`badge ${displayAnalysis.churn_risk === 'high' ? 'badge-red' : displayAnalysis.churn_risk === 'medium' ? 'badge-amber' : 'badge-green'}`}>
+                    {displayAnalysis.churn_risk} risk
                   </span>
                 </div>
-                {displayAnalysis.churn_risk ? (
-                  <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>CHURN RISK</div>
-                    <span className={`badge ${displayAnalysis.churn_risk === 'high' ? 'badge-red' : displayAnalysis.churn_risk === 'medium' ? 'badge-amber' : 'badge-green'}`}>
-                      {displayAnalysis.churn_risk} risk
-                    </span>
-                  </div>
-                ) : null}
-                {displayAnalysis.false_resolution && (
-                  <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>FALSE RESOLUTION</div>
-                    <span className="badge badge-red"><AlertTriangle size={10} /> Detected</span>
-                  </div>
-                )}
-              </div>
+              )}
+              {displayAnalysis.false_resolution && (
+                <div className="insight-row">
+                  <span className="insight-label">False Resolution</span>
+                  <span className="badge badge-red"><AlertTriangle size={10} /> Detected</span>
+                </div>
+              )}
               {(displayAnalysis.churn_signals || []).length > 0 && (
                 <div style={{ padding: '8px 12px', background: 'var(--red-bg)', borderRadius: 6 }}>
                   <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600, marginBottom: 4 }}>Churn Signals</div>

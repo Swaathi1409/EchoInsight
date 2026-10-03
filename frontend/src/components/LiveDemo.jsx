@@ -39,40 +39,39 @@ function ProvisionalStatePanel({ state, commitments }) {
       {/* Live state */}
       {state && (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', marginBottom: 8 }}>
-            Live State <span style={{ color: 'var(--amber)', fontStyle: 'italic', fontSize: 10, fontWeight: 400 }}>provisional</span>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.08em', marginBottom: 10 }}>
+            Live State <span className="badge badge-amber" style={{ fontSize: 9, verticalAlign: 'middle', marginLeft: 4 }}>provisional</span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {state.issue && (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', minWidth: 80, paddingTop: 2 }}>Issue</span>
-                <span style={{ fontSize: 12 }}>{state.issue}</span>
+              <div className="insight-row">
+                <span className="insight-label" style={{ width: 90 }}>Issue</span>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{state.issue}</span>
               </div>
             )}
             {state.resolution && (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', minWidth: 80 }}>Resolution</span>
-                <span style={{ fontSize: 12, textTransform: 'capitalize' }}>{state.resolution?.replace(/_/g, ' ')}</span>
+              <div className="insight-row">
+                <span className="insight-label" style={{ width: 90 }}>Resolution</span>
+                <span style={{ fontSize: 12, textTransform: 'capitalize', color: 'var(--text-primary)' }}>{state.resolution?.replace(/_/g, ' ')}</span>
               </div>
             )}
             {state.customer_sentiment && (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', minWidth: 80 }}>Sentiment</span>
-                <span style={{
-                  fontSize: 12, fontWeight: 600,
-                  color: SENTIMENT_COLOR[state.customer_sentiment] || 'var(--text-muted)',
-                }}>{state.customer_sentiment}</span>
+              <div className="insight-row">
+                <span className="insight-label" style={{ width: 90 }}>Sentiment</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: SENTIMENT_COLOR[state.customer_sentiment] || 'var(--text-muted)' }}>
+                  {state.customer_sentiment}
+                </span>
               </div>
             )}
             {state.churn_risk && state.churn_risk !== 'low' && (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', minWidth: 80 }}>Churn Risk</span>
+              <div className="insight-row">
+                <span className="insight-label" style={{ width: 90 }}>Churn Risk</span>
                 <span className={`badge ${state.churn_risk === 'high' ? 'badge-red' : 'badge-amber'}`}>{state.churn_risk}</span>
               </div>
             )}
             {state.unresolved_questions && state.unresolved_questions.length > 0 && (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', minWidth: 80, paddingTop: 2 }}>Open</span>
+              <div className="insight-row">
+                <span className="insight-label" style={{ width: 90 }}>Open Items</span>
                 <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: 'var(--amber)' }}>
                   {state.unresolved_questions.map((q, i) => <li key={i}>{q}</li>)}
                 </ul>
@@ -297,8 +296,8 @@ export default function LiveDemo() {
                     <div className="turn-avatar" style={{ fontSize: 9 }}>{t.speaker === 'agent' ? 'AGT' : 'CST'}</div>
                     <div className="turn-body">
                       <div className="turn-meta">
-                        <strong style={{ textTransform: 'capitalize' }}>{t.speaker}</strong>
-                        <span>{t.turn_id}</span>
+                        <strong style={{ textTransform: 'capitalize', color: t.speaker === 'agent' ? 'var(--accent-hover)' : 'var(--purple)', fontSize: 12 }}>{t.speaker}</strong>
+                        <code style={{ fontSize: 10, background: 'transparent', color: 'var(--text-muted)', padding: 0 }}>{t.turn_id}</code>
                         <span className={`badge ${t.extraction_status === 'completed' ? 'badge-green' : 'badge-gray'}`} style={{ fontSize: 9 }}>{t.extraction_status}</span>
                       </div>
                       <div className="turn-text">{t.text_redacted}</div>
@@ -315,8 +314,8 @@ export default function LiveDemo() {
           <div className="card-header">
             <span className="card-title">Live State</span>
             {convId && !ended && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--green)' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', animation: 'pulse 2s infinite' }} />
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--green)' }}>
+                <span className="live-indicator" />
                 live
               </span>
             )}
