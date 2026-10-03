@@ -23,34 +23,95 @@ function getUserRole() {
 }
 
 // ---------------------------------------------------------------------------
-// Budget Status Card
+// D21: Platform Metrics Card (replaces thin Budget-only view)
 // ---------------------------------------------------------------------------
+function MetricsStat({ label, value, sub, color }) {
+  return (
+    <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: '12px 16px', flex: 1, minWidth: 120 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 800, color: color || 'var(--text-primary)', lineHeight: 1.1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
 function BudgetCard() {
   const [budget, setBudget] = useState(null);
+  const [convStats, setConvStats] = useState(null);
   const [err, setErr] = useState('');
+
   useEffect(() => {
     api.getBudgetStatus().then(setBudget).catch(e => setErr(e.message));
+    // D21: Fetch conversation stats for platform metrics
+    api.getConversations({ limit: 500 }).then(data => {
+      const convs = Array.isArray(data) ? data : (data.items || []);
+      const total = convs.length;
+      const analyzed = convs.filter(c => c.analysis_version > 0).length;
+      const pending = total - analyzed;
+      const qaScores = convs.filter(c => c.qa_score != null).map(c => c.qa_score);
+      const avgQA = qaScores.length ? (qaScores.reduce((a, b) => a + b, 0) / qaScores.length).toFixed(1) : null;
+      const churnHigh = convs.filter(c => c.churn_risk === 'high').length;
+      const churnMed = convs.filter(c => c.churn_risk === 'medium').length;
+      const resolved = convs.filter(c => c.resolution === 'resolved').length;
+      const unresolved = convs.filter(c => c.resolution === 'unresolved').length;
+      const falseRes = convs.filter(c => c.false_resolution === true).length;
+      setConvStats({ total, analyzed, pending, avgQA, churnHigh, churnMed, resolved, unresolved, falseRes });
+    }).catch(() => {});
   }, []);
+
   if (err) return <div className="card"><div className="error-banner">{err}</div></div>;
-  if (!budget) return <div className="card"><div className="skeleton" style={{ height: 60 }} /></div>;
-  const pct = budget.pct_used;
+
+  const pct = budget?.pct_used ?? 0;
   const color = pct >= 90 ? 'var(--red)' : pct >= 70 ? 'var(--amber)' : 'var(--green)';
+
   return (
-    <div className="card">
-      <div className="card-header"><span className="card-title">Daily LLM Token Budget</span><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{budget.date}</span></div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10 }}>
-        <div style={{ fontSize: 28, fontWeight: 800, color }}>{budget.pct_used.toFixed(1)}%</div>
-        <div>
-          <div style={{ fontSize: 13 }}>{budget.used.toLocaleString()} / {budget.limit.toLocaleString()} tokens</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{budget.remaining.toLocaleString()} remaining</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Token Budget */}
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title">Daily LLM Token Budget</span>
+          {budget && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{budget.date}</span>}
         </div>
+        {!budget ? <div className="skeleton" style={{ height: 50 }} /> : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10 }}>
+              <div style={{ fontSize: 28, fontWeight: 800, color }}>{budget.pct_used.toFixed(1)}%</div>
+              <div>
+                <div style={{ fontSize: 13 }}>{budget.used.toLocaleString()} / {budget.limit.toLocaleString()} tokens</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{budget.remaining.toLocaleString()} remaining today</div>
+              </div>
+            </div>
+            <div style={{ height: 8, background: 'var(--bg-secondary)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: color, borderRadius: 4, transition: 'width 0.4s ease' }} />
+            </div>
+          </>
+        )}
       </div>
-      <div style={{ height: 8, background: 'var(--bg-secondary)', borderRadius: 4, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: color, borderRadius: 4, transition: 'width 0.4s ease' }} />
+
+      {/* Platform Metrics */}
+      <div className="card">
+        <div className="card-header"><span className="card-title">Platform Metrics</span></div>
+        {!convStats ? <div className="skeleton" style={{ height: 80 }} /> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <MetricsStat label="Total Conversations" value={convStats.total} />
+              <MetricsStat label="Analysed" value={convStats.analyzed} sub={`${convStats.pending} pending`} color="var(--green)" />
+              <MetricsStat label="Avg QA Score" value={convStats.avgQA != null ? `${convStats.avgQA}` : '—'} sub="out of 100" />
+              <MetricsStat label="False Resolutions" value={convStats.falseRes} color={convStats.falseRes > 0 ? 'var(--red)' : 'var(--green)'} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <MetricsStat label="Resolved" value={convStats.resolved} color="var(--green)" />
+              <MetricsStat label="Unresolved" value={convStats.unresolved} color="var(--red)" />
+              <MetricsStat label="High Churn Risk" value={convStats.churnHigh} color={convStats.churnHigh > 0 ? 'var(--red)' : 'var(--green)'} />
+              <MetricsStat label="Medium Churn Risk" value={convStats.churnMed} color={convStats.churnMed > 0 ? 'var(--amber)' : 'var(--text-muted)'} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // D18: Human-readable action label map
@@ -256,21 +317,23 @@ function CasesManager() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  const [expanded, setExpanded] = useState({});
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   const load = useCallback(() => {
-    api.getChecklists ? null : null; // use api
-    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/cases`, {
+    fetch(`${API_URL}/api/v1/cases`, {
       headers: { Authorization: `Bearer ${getToken()}` }
     }).then(r => r.json()).then(data => { setCases(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [API_URL]);
 
   useEffect(() => { load(); }, [load]);
 
   const createCase = async () => {
     if (!newTitle.trim()) return;
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/cases`, {
+      await fetch(`${API_URL}/api/v1/cases`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ title: newTitle.trim(), conversation_ids: [] }),
@@ -283,6 +346,8 @@ function CasesManager() {
 
   const STATUS_MAP = { open: 'badge-amber', closed: 'badge-green', escalated: 'badge-red' };
 
+  const toggleExpand = (caseId) => setExpanded(e => ({ ...e, [caseId]: !e[caseId] }));
+
   return (
     <div className="card">
       <div className="card-header">
@@ -293,7 +358,7 @@ function CasesManager() {
       </div>
       {creating && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Case title…"
+          <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Case title..."
             onKeyDown={e => e.key === 'Enter' && createCase()}
             style={{ flex: 1, background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '6px 10px', color: 'var(--text-primary)', fontSize: 13 }} />
           <button className="btn btn-primary btn-sm" onClick={createCase}>Create</button>
@@ -302,30 +367,47 @@ function CasesManager() {
       )}
       {loading ? <div className="skeleton" style={{ height: 40 }} /> : (
         cases.length === 0 ? <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>No cases yet.</p> : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr>
-                {['Case ID', 'Title', 'Status', 'Conversations'].map(h => (
-                  <th key={h} style={{ padding: '8px 0', textAlign: 'left', color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {cases.map(c => (
-                <tr key={c.case_id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                  <td style={{ padding: '8px 0' }}><code style={{ fontSize: 11 }}>{c.case_id.slice(0, 8)}</code></td>
-                  <td style={{ padding: '8px 0', fontWeight: 500 }}>{c.title}</td>
-                  <td style={{ padding: '8px 0' }}><span className={`badge ${STATUS_MAP[c.status] || 'badge-gray'}`}>{c.status}</span></td>
-                  <td style={{ padding: '8px 0', color: 'var(--text-muted)' }}>{c.conversation_count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {cases.map(c => (
+              <div key={c.case_id} style={{ borderBottom: '1px solid var(--border-subtle)', padding: '10px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => toggleExpand(c.case_id)}>
+                  <code style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.case_id.slice(0, 8)}</code>
+                  <span style={{ flex: 1, fontWeight: 500, fontSize: 13 }}>{c.title}</span>
+                  <span className={`badge ${STATUS_MAP[c.status] || 'badge-gray'}`}>{c.status}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.conversation_count} conv{c.conversation_count !== 1 ? 's' : ''}</span>
+                  {c.created_at && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(c.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{expanded[c.case_id] ? '▲' : '▼'}</span>
+                </div>
+                {/* D22: Expanded conversation links */}
+                {expanded[c.case_id] && (
+                  <div style={{ paddingTop: 8, paddingLeft: 16 }}>
+                    {c.notes && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>{c.notes}</p>}
+                    {(c.conversations || []).length === 0 ? (
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No conversations linked.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Linked Conversations</div>
+                        {c.conversations.map(conv => (
+                          <a key={conv.conversation_id}
+                            href={`#/conversation/${conv.conversation_id}`}
+                            style={{ fontSize: 12, color: 'var(--accent)', fontFamily: 'monospace', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            title={conv.conversation_id}>
+                            <Link size={11} /> {conv.conversation_id.slice(0, 8)}...
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         )
       )}
     </div>
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // Main AdminPanel

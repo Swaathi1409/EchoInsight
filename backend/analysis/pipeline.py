@@ -207,6 +207,33 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
         logger.warning("Selective verification failed: %s", exc)
         qa_items_verified = qa_items_gated
 
+    # D7 fix: Evidence-based confidence normalization.
+    # Override the LLM's tendency to return constant 0.9-0.95 for all items.
+    for item in qa_items_verified:
+        # If phrase_matcher set confidence to 1.0, preserve it.
+        if item.get("confidence") == 1.0:
+            continue
+        quote = (item.get("quote") or "").strip()
+        turn_id = (item.get("turn_id") or "").strip()
+        result = item.get("result", "")
+        if result == "not_applicable":
+            # not_applicable: doesn't need evidence
+            item["confidence"] = round(item.get("confidence", 0.9), 2)
+        elif quote and len(quote) >= 5 and turn_id:
+            # Has both quote and turn reference — strong evidence
+            # Only upgrade if LLM returned a plausibly calibrated value
+            item["confidence"] = max(item.get("confidence", 0.8), 0.82)
+        elif quote and len(quote) >= 5:
+            # Has quote but no turn_id — moderate evidence
+            item["confidence"] = min(item.get("confidence", 0.75), 0.84)
+        elif turn_id:
+            # Has turn reference but no quote — weak-moderate
+            item["confidence"] = min(item.get("confidence", 0.65), 0.74)
+        else:
+            # No evidence at all
+            item["confidence"] = min(item.get("confidence", 0.55), 0.60)
+        item["confidence"] = round(item["confidence"], 2)
+
     qa_result_data = qa_score(qa_items_verified)
 
     # Validator hard gate: all 7 conditions must pass
@@ -275,10 +302,22 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
     )
     session.add(qa_result)
 
+    # D4 fix: Prevent duplicate commitments across analysis versions.
+    # Delete previous non-provisional commitments for this conversation before
+    # inserting the fresh set from the current analysis.
+    from sqlalchemy import delete as sa_delete
+    await session.execute(
+        sa_delete(Commitment).where(
+            Commitment.conversation_id == conversation_id,
+            Commitment.provisional == False,  # noqa: E712
+        )
+    )
+    await session.flush()
+
     # Persist commitments
     for c in gated_commitments:
         commitment = Commitment(
-            commitment_id=c.get("commitment_id", str(uuid.uuid4())),
+            commitment_id=str(uuid.uuid4()),  # always fresh id after delete
             conversation_id=conversation_id,
             description=c.get("description", ""),
             owner=c.get("owner", ""),

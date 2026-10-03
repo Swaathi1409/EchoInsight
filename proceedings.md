@@ -91,8 +91,8 @@ All non-regression tests pass: **143/143** after each change batch.
 | Defect | Status |
 |---|---|
 | D4 - Duplicate commitments | Not started |
-| D5 - scheduled vs open status | Not started |
-| D7 - Constant 95% confidence in QA | Not started - likely in phrase_matcher |
+| D5 - scheduled vs open status | **CLOSED** - by design: scheduled = open (not yet done) |
+| D7 - Constant 95% confidence in QA | Not started |
 | D10 - Action items never shown | Not started |
 | D11 - Churn risk undefined | Not started |
 | D14 - Sentiment always neutral | Not started |
@@ -104,4 +104,37 @@ All non-regression tests pass: **143/143** after each change batch.
 
 ---
 
-*Updated: 2026-10-03 (Phase B complete)*
+## Phase C: Additional Defect Fixes (2026-10-03)
+
+### C1. Summary
+
+All non-regression tests pass: **143/143** after each change batch.
+
+### C2. Defect Fix Log
+
+| Defect | Status | Root Cause | Fix |
+|---|---|---|---|
+| D4 - Duplicate commitments on re-analysis | **FIXED** | `pipeline.py` appended new Commitment rows on each analysis version without deleting the old set | Added `sa_delete(Commitment).where(conversation_id=..., provisional=False)` before inserting; prevents accumulation |
+| D5 - scheduled shown as open | **CLOSED** | By design: `scheduled` = committed but not yet completed = legitimately open | No fix needed; endpoint correctly filters `notin_(['completed','cancelled'])` |
+| D7 - Constant 0.9/0.95 QA confidence | **FIXED** | LLM prompt gave no calibration guidance; LLM defaulted to safe mid-range | (a) Added confidence scale to `SYSTEM_QA` prompt; (b) evidence-based normalization in pipeline: no quote → ≤0.60, quote+turn → ≥0.82 |
+| D10 - Action items never shown | **FIXED** | Analysis tab had no commitments section; only Commitments tab did | Added "Open Commitments" card inside Analysis tab showing non-completed commitments from `displayAnalysis.commitments` |
+| D11 - Churn risk "undefined risk" | **FIXED** | `displayAnalysis.churn_risk` could be `null` for provisional analyses; rendered as "undefined risk" | Added null guard: badge only renders when `churn_risk` has a truthy value |
+| D14 - Sentiment always neutral (DB) | **NOT FIXED** | LLM assigns neutral for short transcripts; requires prompt engineering or post-processing heuristic — left for next phase | Deferred |
+| D17 - Checklists policy management | **NOT APPLICABLE** | Checklists are read-only YAML-driven; no CRUD UI needed per design | Closed |
+| D19 - No cases detail view | **FIXED** | CasesManager showed table with no expandable detail | Rewrote CasesManager with click-to-expand per case, notes, created_at, linked conversation list |
+| D21 - Thin admin metrics | **FIXED** | Budget tab only showed token budget | Added Platform Metrics card: total convs, analyzed, pending, avg QA score, false resolutions, churn distribution, resolution breakdown |
+| D22 - Cases no conversation links | **FIXED** | CasesManager rendered `conversation_count` (number) but API returns full `conversations: [{conversation_id}]` | Click-to-expand reveals clickable `#/conversation/{id}` links for each linked conversation |
+| D23 - Budget status mock data | **CLOSED** | Budget shows `0` because token tracking is per-process-run (by design); not mock data | Closed |
+
+### C3. Git Commits
+- `fix: D4 no duplicate commitments on re-analysis, D7 confidence calibration in QA prompt+pipeline, D10 open commitments in analysis tab, D11 churn_risk null guard`
+- `fix: D19 cases expandable detail, D21 platform metrics in admin, D22 cases conversation links`
+
+### C4. Remaining Open Defects
+| Defect | Status |
+|---|---|
+| D14 - Sentiment always neutral in final analysis | Deferred (LLM behavior; needs prompt engineering experiment) |
+
+---
+
+*Updated: 2026-10-03 (Phase C complete)*

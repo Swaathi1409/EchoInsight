@@ -410,12 +410,14 @@ export default function ConversationDetail({ convId }) {
                     {displayAnalysis.resolution?.replace(/_/g, ' ')}
                   </span>
                 </div>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>CHURN RISK</div>
-                  <span className={`badge ${displayAnalysis.churn_risk === 'high' ? 'badge-red' : displayAnalysis.churn_risk === 'medium' ? 'badge-amber' : 'badge-green'}`}>
-                    {displayAnalysis.churn_risk} risk
-                  </span>
-                </div>
+                {displayAnalysis.churn_risk ? (
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>CHURN RISK</div>
+                    <span className={`badge ${displayAnalysis.churn_risk === 'high' ? 'badge-red' : displayAnalysis.churn_risk === 'medium' ? 'badge-amber' : 'badge-green'}`}>
+                      {displayAnalysis.churn_risk} risk
+                    </span>
+                  </div>
+                ) : null}
                 {displayAnalysis.false_resolution && (
                   <div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>FALSE RESOLUTION</div>
@@ -456,6 +458,28 @@ export default function ConversationDetail({ convId }) {
                 </div>
               </div>
             )}
+
+            {/* D10: Open commitments summary in analysis tab */}
+            {(() => {
+              const openComm = (displayAnalysis.commitments || []).filter(
+                c => !['completed', 'cancelled'].includes(c.status)
+              );
+              if (openComm.length === 0) return null;
+              return (
+                <div className="card">
+                  <div className="card-header">
+                    <span className="card-title">Open Commitments</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{openComm.length} open</span>
+                  </div>
+                  <CommitmentLedger commitments={openComm} />
+                  {(displayAnalysis.commitments || []).length > openComm.length && (
+                    <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      {(displayAnalysis.commitments || []).length - openComm.length} completed / cancelled — visible in the Commitments tab.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         ) : (
           <div className="card" style={{ textAlign: 'center', padding: 40 }}>
