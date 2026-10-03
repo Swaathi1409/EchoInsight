@@ -5,7 +5,9 @@ import Dashboard from './components/Dashboard';
 import ConversationDetail from './components/ConversationDetail';
 import LiveDemo from './components/LiveDemo';
 import AdminPanel from './components/AdminPanel';
-import { LayoutDashboard, Mic2, LogOut, Activity, Shield } from 'lucide-react';
+import ActionLayerShell from './action_layer/ActionLayerShell';
+import './action_layer/action_layer.css';
+import { LayoutDashboard, Mic2, LogOut, Activity, Shield, Zap } from 'lucide-react';
 
 function useRoute() {
   const [hash, setHash] = useState(window.location.hash || '#/');
@@ -33,14 +35,17 @@ export default function App() {
   const convMatch = hash.match(/^#\/conversation\/(.+)$/);
   const isDemo = hash === '#/demo';
   const isAdmin = hash === '#/admin';
-  const isOverview = !convMatch && !isDemo && !isAdmin;
+  const isAction = hash === '#/action' || hash.startsWith('#/action/');
+  const isOverview = !convMatch && !isDemo && !isAdmin && !isAction;
 
   const role = authed ? (parseJwt(getToken()).role || 'agent') : 'agent';
   const isPrivileged = ['admin', 'supervisor'].includes(role);
+  const currentUser = { role };
 
   const navItems = [
     { label: 'Overview', icon: LayoutDashboard, href: '#/', active: isOverview },
     { label: 'Live Demo', icon: Mic2, href: '#/demo', active: isDemo },
+    { label: 'Action', icon: Zap, href: '#/action', active: isAction },
     ...(isPrivileged ? [{ label: 'Admin', icon: Shield, href: '#/admin', active: isAdmin }] : []),
   ];
 
@@ -49,6 +54,7 @@ export default function App() {
   let topbarTitle = 'Overview';
   if (isDemo) topbarTitle = 'Live Demo';
   if (isAdmin) topbarTitle = 'Admin Panel';
+  if (isAction) topbarTitle = 'Action Intelligence';
   if (convMatch) topbarTitle = `Conversation ${convMatch[1].slice(0, 8)}…`;
 
   return (
@@ -95,6 +101,8 @@ export default function App() {
           ? <LiveDemo />
           : isAdmin
           ? <AdminPanel />
+          : isAction
+          ? <ActionLayerShell currentUser={currentUser} />
           : <Dashboard onSelectConv={(id) => { window.location.hash = `#/conversation/${id}`; }} />
         }
       </main>

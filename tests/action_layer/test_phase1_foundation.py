@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import pytest
 
+from tests.conftest import get_token
+
 
 # ── Import smoke tests ────────────────────────────────────────────────────────
 
@@ -98,8 +100,10 @@ async def test_action_status_disabled(admin_client):
 
 @pytest.mark.asyncio
 async def test_action_items_disabled(admin_client):
-    """When disabled, /api/v1/action/items returns disabled response."""
-    response = await admin_client.get("/api/v1/action/items")
+    """When disabled, /api/v1/action/items returns disabled response (auth required)."""
+    token = await get_token(admin_client)
+    headers = {"Authorization": f"Bearer {token}"}
+    response = await admin_client.get("/api/v1/action/items", headers=headers)
     assert response.status_code == 200
     data = response.json()
     assert data["enabled"] is False
@@ -107,20 +111,29 @@ async def test_action_items_disabled(admin_client):
 
 @pytest.mark.asyncio
 async def test_action_issues_disabled(admin_client):
-    response = await admin_client.get("/api/v1/action/issues")
+    """When disabled, /api/v1/action/issues returns disabled response."""
+    token = await get_token(admin_client)
+    headers = {"Authorization": f"Bearer {token}"}
+    response = await admin_client.get("/api/v1/action/issues", headers=headers)
     assert response.status_code == 200
     assert response.json()["enabled"] is False
 
 
 @pytest.mark.asyncio
 async def test_action_initiatives_disabled(admin_client):
-    response = await admin_client.get("/api/v1/action/initiatives")
+    """When disabled, /api/v1/action/initiatives returns disabled response."""
+    token = await get_token(admin_client)
+    headers = {"Authorization": f"Bearer {token}"}
+    response = await admin_client.get("/api/v1/action/initiatives", headers=headers)
     assert response.status_code == 200
     assert response.json()["enabled"] is False
 
 
 @pytest.mark.asyncio
 async def test_action_agent_profile_disabled(admin_client):
-    response = await admin_client.get("/api/v1/action/agents/agent-001/profile")
+    """When disabled, /api/v1/action/agents profile returns disabled response."""
+    token = await get_token(admin_client)
+    headers = {"Authorization": f"Bearer {token}"}
+    response = await admin_client.get("/api/v1/action/agents/agent-001/profile", headers=headers)
     assert response.status_code == 200
     assert response.json()["enabled"] is False
