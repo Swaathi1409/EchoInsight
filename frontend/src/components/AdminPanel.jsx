@@ -157,7 +157,9 @@ function AuditDetailModal({ log, onClose }) {
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      background: 'rgba(0,0,0,0.5)',
+      background: 'rgba(15, 23, 42, 0.85)',
+      backdropFilter: 'blur(4px)',
+      WebkitBackdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       zIndex: 1000,
       padding: 20
