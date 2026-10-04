@@ -110,20 +110,21 @@ function KPICard({ icon, label, value, sub, color, accentColor }) {
   const accent = accentColor || color || 'var(--accent)';
   return (
     <div className="card" style={{
-      display: 'flex', alignItems: 'flex-start', gap: 14, padding: '18px 20px',
+      display: 'flex', flexDirection: 'column', gap: 12, padding: '16px',
       position: 'relative', overflow: 'hidden',
       '--kpi-color': accent,
+      height: '100%', boxSizing: 'border-box'
     }}>
       <div style={{
-        background: `${accent}18`, borderRadius: 10, padding: 10,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        background: `${accent}18`, borderRadius: 8, padding: 8,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start'
       }}>
         {icon}
       </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>{label}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{label}</div>
         <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-heading)', lineHeight: 1 }}>{value ?? '—'}</div>
-        {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5, lineHeight: 1.4 }}>{sub}</div>}
+        {sub && <div style={{ marginTop: 'auto', paddingTop: 8, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3 }}>{sub}</div>}
       </div>
     </div>
   );
