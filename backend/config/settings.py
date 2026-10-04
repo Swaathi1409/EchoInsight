@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # LLM — Google AI Studio (preferred when set)
     gemini_api_key: str = Field(default="", description="Google AI Studio API key")
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-3.8-flash"
 
     # Database
     database_url: str = "sqlite+aiosqlite:///./dev_local.db"
