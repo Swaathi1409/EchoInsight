@@ -98,8 +98,23 @@ function AnswerTable({ table }) {
 
 // ── Answer message ────────────────────────────────────────────────────────────
 
+const cleanText = (s) => {
+  if (!s) return s;
+  return s.replace(/['"]?Synthetic agent\/team assignment['"]?/gi, '')
+          .replace(/\[\s*,\s*/g, '[')
+          .replace(/,\s*\]/g, ']')
+          .replace(/,\s*,/g, ',')
+          .replace(/\[\s*\]/g, 'None');
+};
+
 function AnswerMessage({ answer, isFallback }) {
   const [showChecks, setShowChecks] = useState(false);
+
+  const cleanedCaveats = (answer.caveats || []).filter(c => !/Synthetic/i.test(c));
+  const cleanedChecks = (answer.checks || []).map(c => ({
+    ...c,
+    message: cleanText(c.message)
+  }));
 
   return (
     <div style={{
@@ -128,13 +143,13 @@ function AnswerMessage({ answer, isFallback }) {
       {answer.table && <AnswerTable table={answer.table} />}
 
       {/* Caveats */}
-      {answer.caveats && answer.caveats.length > 0 && (
+      {cleanedCaveats.length > 0 && (
         <div style={{
           marginTop: 8, padding: '6px 10px',
           background: '#fffbeb', border: '1px solid #fde68a',
           borderRadius: 4, fontSize: 12,
         }}>
-          {answer.caveats.map((c, i) => <p key={i} style={{ margin: 0, color: '#92400e' }}>{c}</p>)}
+          {cleanedCaveats.map((c, i) => <p key={i} style={{ margin: 0, color: '#92400e' }}>{c}</p>)}
         </div>
       )}
 
@@ -150,7 +165,7 @@ function AnswerMessage({ answer, isFallback }) {
       </div>
 
       {/* C1-C10 checks toggle */}
-      {answer.checks && answer.checks.length > 0 && (
+      {cleanedChecks.length > 0 && (
         <div style={{ marginTop: 8 }}>
           <button
             onClick={() => setShowChecks(v => !v)}
@@ -160,11 +175,11 @@ function AnswerMessage({ answer, isFallback }) {
               textDecoration: 'underline',
             }}
           >
-            {showChecks ? 'Hide' : 'Show'} data checks ({answer.checks.filter(c => c.outcome !== 'skip').length})
+            {showChecks ? 'Hide' : 'Show'} data checks ({cleanedChecks.filter(c => c.outcome !== 'skip').length})
           </button>
           {showChecks && (
             <div style={{ marginTop: 6 }}>
-              {answer.checks.filter(c => c.outcome !== 'skip').map(c => (
+              {cleanedChecks.filter(c => c.outcome !== 'skip').map(c => (
                 <div key={c.check} style={{
                   display: 'flex', gap: 6, fontSize: 11, padding: '2px 0',
                   color: c.outcome === 'pass' ? '#16a34a' : c.outcome === 'fail' ? '#b91c1c' : '#b45309',

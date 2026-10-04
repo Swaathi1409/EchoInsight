@@ -91,9 +91,24 @@ function FollowupChip({ text, onSend }) {
   );
 }
 
+const cleanText = (s) => {
+  if (!s) return s;
+  return s.replace(/['"]?Synthetic agent\/team assignment['"]?/gi, '')
+          .replace(/\[\s*,\s*/g, '[')
+          .replace(/,\s*\]/g, ']')
+          .replace(/,\s*,/g, ',')
+          .replace(/\[\s*\]/g, 'None');
+};
+
 // ── Answer bubble ─────────────────────────────────────────────────────────────
 function AnswerBubble({ answer, onSend }) {
   const [showChecks, setShowChecks] = useState(false);
+
+  const cleanedCaveats = (answer.caveats || []).filter(c => !/Synthetic/i.test(c));
+  const cleanedChecks = (answer.checks || []).map(c => ({
+    ...c,
+    message: cleanText(c.message)
+  }));
 
   if (answer.is_out_of_scope) return (
     <div style={{ background: 'rgba(248,113,113,.06)', border: '1px solid rgba(248,113,113,.2)', borderRadius: 10, padding: '12px 16px' }}>
@@ -126,9 +141,9 @@ function AnswerBubble({ answer, onSend }) {
       <AnswerTable table={answer.table} />
 
       {/* Caveats */}
-      {answer.caveats?.length > 0 && (
+      {cleanedCaveats.length > 0 && (
         <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(251,191,36,.07)', border: '1px solid rgba(251,191,36,.20)', borderRadius: 6 }}>
-          {answer.caveats.map((c, i) => <p key={i} style={{ margin: 0, color: '#fbbf24', fontSize: 12 }}>{c}</p>)}
+          {cleanedCaveats.map((c, i) => <p key={i} style={{ margin: 0, color: '#fbbf24', fontSize: 12 }}>{c}</p>)}
         </div>
       )}
 
@@ -140,14 +155,14 @@ function AnswerBubble({ answer, onSend }) {
       </div>
 
       {/* Checks toggle */}
-      {answer.checks?.filter(c => c.outcome !== 'skip').length > 0 && (
+      {cleanedChecks.filter(c => c.outcome !== 'skip').length > 0 && (
         <div style={{ marginTop: 8 }}>
           <button onClick={() => setShowChecks(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)', padding: 0, textDecoration: 'underline' }}>
-            {showChecks ? 'Hide' : 'Show'} data checks ({answer.checks.filter(c => c.outcome !== 'skip').length})
+            {showChecks ? 'Hide' : 'Show'} data checks ({cleanedChecks.filter(c => c.outcome !== 'skip').length})
           </button>
           {showChecks && (
             <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {answer.checks.filter(c => c.outcome !== 'skip').map(c => (
+              {cleanedChecks.filter(c => c.outcome !== 'skip').map(c => (
                 <div key={c.check} style={{ display: 'flex', gap: 6, fontSize: 11, color: c.outcome === 'pass' ? '#4ade80' : c.outcome === 'fail' ? '#f87171' : '#fbbf24' }}>
                   <span style={{ fontWeight: 700, minWidth: 22 }}>{c.check}</span>
                   <span style={{ color: 'var(--text-secondary)' }}>{c.label}{c.message ? ': ' + c.message : ''}</span>

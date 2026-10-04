@@ -295,7 +295,6 @@ export default function ConversationDetail({ convId }) {
             )}
             {conv.agent_id && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Agent: <strong>{conv.agent_id}</strong></span>}
             {conv.team_id && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Team: <strong>{conv.team_id}</strong></span>}
-            {conv.synthetic_assignment && <span className="synthetic-label">Synthetic Assignment</span>}
           </div>
         </div>
         <button className="btn btn-ghost btn-sm" onClick={() => load(true)} disabled={refreshing}
