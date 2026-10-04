@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from backend.models import Base  # noqa: E402
 # Import action layer models so act_* tables are included in Base.metadata
 import backend.action_layer.models  # noqa: F401, E402
+import backend.assistant.models  # noqa: F401, E402
 
 # Alembic Config object
 config = context.config

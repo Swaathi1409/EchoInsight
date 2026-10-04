@@ -214,6 +214,7 @@ class Analysis(Base):
     false_resolution_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    checklist_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     conversation: Mapped[Conversation] = relationship("Conversation", back_populates="analyses")
@@ -232,7 +233,8 @@ class QAResult(Base):
     analysis_id: Mapped[str] = mapped_column(String(64), ForeignKey("analyses.analysis_id"), nullable=False)
     conversation_id: Mapped[str] = mapped_column(String(64), ForeignKey("conversations.id"), nullable=False)
     analysis_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    checklist_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    checklist_version: Mapped[str] = mapped_column(String(32), nullable=False) # legacy string
+    checklist_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True) # new id
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     score_label: Mapped[str] = mapped_column(String(32), nullable=False)  # "score", "partial", "not_assessed"
     coverage: Mapped[float] = mapped_column(Float, nullable=False)
@@ -347,4 +349,58 @@ class ReviewAnnotation(Base):
         Index("ix_review_annotations_conversation_id", "conversation_id"),
         Index("ix_review_annotations_reviewer_id", "reviewer_id"),
         Index("ix_review_annotations_created_at", "created_at"),
+    )
+
+
+class QAChecklist(Base):
+    __tablename__ = "qa_checklist"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class QAChecklistVersion(Base):
+    __tablename__ = "qa_checklist_version"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    checklist_id: Mapped[int] = mapped_column(Integer, ForeignKey("qa_checklist.id"), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False) # draft, active, archived
+    source: Mapped[str] = mapped_column(String(32), nullable=False) # yaml_seed, ui, import
+    created_by: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    activated_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    change_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    settings: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("checklist_id", "version_number", name="uq_qa_checklist_version_number"),
+        Index("ix_qa_checklist_version_status", "status"),
+        Index("ix_qa_checklist_version_active", "checklist_id", "status", unique=True, postgresql_where=(status == 'active'), sqlite_where=(status == 'active')),
+    )
+
+
+class QAChecklistItem(Base):
+    __tablename__ = "qa_checklist_item"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    version_id: Mapped[int] = mapped_column(Integer, ForeignKey("qa_checklist_version.id"), nullable=False)
+    item_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    weight: Mapped[float] = mapped_column(Float, nullable=False)
+    required: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    critical: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    evaluation_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    policy_reference: Mapped[str | None] = mapped_column(Text, nullable=True)
+    applicability_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("version_id", "item_key", name="uq_qa_checklist_item_key"),
     )
