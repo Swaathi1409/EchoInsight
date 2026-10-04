@@ -142,6 +142,10 @@ class AssistantLLMAdapter:
                 content = content[start:end+1]
                 
         content = content.strip()
+        
+        with open("C:/Users/Admin/.gemini/antigravity-ide/brain/b638613e-69a9-472c-8d8f-f198e31a75bb/scratch/llm_debug.txt", "a", encoding="utf-8") as f:
+            f.write("=== RAW ===\n" + (resp.choices[0].message.content or "") + "\n")
+            f.write("=== PARSED ===\n" + content + "\n\n")
 
         # Ensure we always return a JSON object string
         try:

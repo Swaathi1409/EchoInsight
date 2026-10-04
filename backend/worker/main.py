@@ -71,6 +71,12 @@ async def poll_loop() -> None:
     import uuid
     from backend.models import Conversation, Turn
     from backend.domain_model import ConversationStatus, JobType
+    from backend.bootstrap import bootstrap_qa_checklists
+
+    # Bootstrap QA Checklists on worker startup too
+    async with get_db_session() as session:
+        await bootstrap_qa_checklists(session)
+
     while True:
         try:
             async with get_db_session() as session:

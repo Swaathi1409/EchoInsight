@@ -178,7 +178,27 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
         qa_transcript, _ = _build_transcript(turns[-WINDOW_SIZE:])
     else:
         qa_transcript = transcript
-    qa_messages = build_qa_messages(qa_transcript)
+        
+    from backend.models import QAChecklist, QAChecklistVersion, QAChecklistItem
+    from sqlalchemy.orm import selectinload
+    # Load the active checklist version
+    # Fallback to example if not found
+    checklist_key = POLICY_VERSION.split("_")[0] if "_" in POLICY_VERSION else POLICY_VERSION
+    q_ver = select(QAChecklistVersion).join(QAChecklist).where(
+        QAChecklist.key == checklist_key,
+        QAChecklistVersion.status == "active"
+    ).order_by(QAChecklistVersion.version_number.desc()).limit(1)
+    
+    active_version = (await session.execute(q_ver)).scalar_one_or_none()
+    
+    if active_version:
+        q_items = select(QAChecklistItem).where(QAChecklistItem.version_id == active_version.id).order_by(QAChecklistItem.display_order)
+        db_items = (await session.execute(q_items)).scalars().all()
+    else:
+        # Fallback to empty if not found, though bootstrap should ensure it exists
+        db_items = []
+
+    qa_messages = build_qa_messages(qa_transcript, db_items)
     qa_raw, qa_pt, qa_ct = await chat_json(qa_messages, QA_SCHEMA)
     logger.info("QA LLM call: prompt=%d completion=%d", qa_pt, qa_ct)
 
@@ -262,7 +282,8 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
             item["confidence"] = min(item.get("confidence", 0.55), 0.60)
         item["confidence"] = round(item["confidence"], 2)
 
-    qa_result_data = qa_score(qa_items_verified)
+    settings = active_version.settings if active_version else {}
+    qa_result_data = qa_score(qa_items_verified, db_items=db_items, settings=settings)
 
     # Validator hard gate: all 7 conditions must pass
     try:
@@ -298,6 +319,7 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
         model=s.llm_primary_model,
         prompt_version=PROMPT_VERSION,
         policy_version=POLICY_VERSION,
+        checklist_version_id=active_version.id if active_version else None,
         taxonomy_version=1,
         summary=raw.get("summary", ""),
         reasons_json=raw.get("reasons", []),
@@ -319,6 +341,7 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
         conversation_id=conversation_id,
         analysis_version=version,
         checklist_version=POLICY_VERSION,
+        checklist_version_id=active_version.id if active_version else None,
         score=qa_result_data["score"],
         score_label=qa_result_data["score_label"],
         coverage=qa_result_data["coverage"],
