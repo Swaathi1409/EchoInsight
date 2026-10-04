@@ -122,7 +122,7 @@ def _resolve_path(data: Any, path: str) -> str | None:
             continue
             
         # Auto-step into _data wrapper if LLM forgot it
-        if isinstance(cur, dict) and "_data" in cur and part not in ("_data", "count", "type", "sample_keys", "error"):
+        if isinstance(cur, dict) and "_data" in cur:
             # Check if part exists in the wrapper itself just in case
             if part not in cur:
                 cur = cur["_data"]
@@ -240,9 +240,18 @@ def _build_fallback(
             table = {"columns": cols, "rows": rows, "truncated": len(result) > 8}
             details.append(f"{tcr.tool_name}: {len(result)} items returned.")
         elif isinstance(result, dict):
-            for k, v in list(result.items())[:8]:
-                if not isinstance(v, (dict, list)):
-                    details.append(f"{k}: {v}")
+            # Look for an inner list to render as a table (e.g. paginated 'items' array)
+            inner_lists = [v for v in result.values() if isinstance(v, list) and v and isinstance(v[0], dict)]
+            if inner_lists:
+                res_list = inner_lists[0]
+                cols = list(res_list[0].keys())[:6]
+                rows = [[str(row.get(c, "")) for c in cols] for row in res_list[:8]]
+                table = {"columns": cols, "rows": rows, "truncated": len(res_list) > 8}
+                details.append(f"{tcr.tool_name}: {len(res_list)} items returned from dict.")
+            else:
+                for k, v in list(result.items())[:8]:
+                    if not isinstance(v, (dict, list)):
+                        details.append(f"{k}: {v}")
 
     return AnswerPayload(
         headline="Table view (summary text unavailable)",
@@ -427,6 +436,10 @@ class AssistantPipeline:
         for tcr in tool_call_results:
             if isinstance(tcr.result, list):
                 all_results_flat.extend(tcr.result)
+            elif isinstance(tcr.result, dict):
+                for val in tcr.result.values():
+                    if isinstance(val, list):
+                        all_results_flat.extend(val)
 
         post_checks = run_all_checks(
             role=role,
