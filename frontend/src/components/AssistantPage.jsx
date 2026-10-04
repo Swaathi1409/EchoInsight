@@ -368,13 +368,12 @@ export default function AssistantPage({ currentRoute = '' }) {
               borderRadius: 6, padding: '5px 14px', fontSize: 12, cursor: 'pointer', fontWeight: 600,
               transition: 'all .15s',
             }}>Help</button>
-            {messages.length > 0 && (
-              <button onClick={clearAll} style={{
-                background: 'transparent', border: '1px solid var(--border)',
-                borderRadius: 6, padding: '5px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--text-muted)',
-                transition: 'all .15s',
-              }}>Clear</button>
-            )}
+            <button onClick={clearAll} style={{
+              background: 'transparent', border: '1px solid var(--border)',
+              borderRadius: 6, padding: '5px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--text-muted)',
+              transition: 'all .15s',
+              visibility: messages.length > 0 ? 'visible' : 'hidden'
+            }}>Clear</button>
           </div>
         </div>
 

@@ -340,7 +340,7 @@ export default function Dashboard({ onSelectConv }) {
       {error && <div className="error-banner" style={{ marginBottom: 16 }}>{error}</div>}
 
       {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 24 }}>
         <KPICard icon={<Activity size={20} color="var(--accent)" />} label="Total Analyzed" value={analyzed}
           sub={`${active} active${pendingAnalysis > 0 ? ` · ${pendingAnalysis} pending analysis` : ''}`} color="var(--accent)" />
         <KPICard icon={<CheckCircle size={20} color="var(--green)" />} label="Resolved" value={resolved}
@@ -483,7 +483,6 @@ export default function Dashboard({ onSelectConv }) {
                       onMouseLeave={e => e.currentTarget.style.background = ''}>
                       <td style={{ padding: '10px 12px' }}>
                         <code style={{ fontSize: 12, background: 'var(--bg-secondary)', padding: '2px 5px', borderRadius: 4 }}>{c.id.slice(0, 8)}</code>
-                        {c.synthetic_assignment && <span className="synthetic-label" style={{ marginLeft: 5 }}>synthetic</span>}
                       </td>
                       <td style={{ padding: '10px 12px' }}><StatusBadge status={c.status} /></td>
                       <td style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 12 }}>{c.started_at ? new Date(c.started_at).toLocaleString() : '—'}</td>

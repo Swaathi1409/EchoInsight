@@ -242,21 +242,6 @@ export default function LiveDemo() {
             {jobId && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--amber)' }}>Analysis queued - check the conversation page in ~30s</div>}
           </div>
 
-          {/* Quick Script - D20: show full text, not truncated */}
-          <div className="card">
-            <div className="card-header"><span className="card-title">Quick Script</span></div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 280, overflowY: 'auto' }}>
-              {QUICK_TURNS.map((t, i) => (
-                <button key={i} className="btn btn-ghost btn-sm"
-                  style={{ justifyContent: 'flex-start', textAlign: 'left', fontSize: 11, whiteSpace: 'normal', height: 'auto', padding: '6px 8px' }}
-                  onClick={() => appendTurn(t.speaker, t.text)} disabled={!convId || ended || loading}>
-                  <span className={`badge ${t.speaker === 'agent' ? 'badge-blue' : 'badge-purple'}`} style={{ minWidth: 60, flexShrink: 0 }}>{t.speaker}</span>
-                  <span style={{ marginLeft: 6 }}>{t.text}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Manual Turn */}
           {convId && !ended && (
             <div className="card">
@@ -275,6 +260,21 @@ export default function LiveDemo() {
               </button>
             </div>
           )}
+
+          {/* Quick Script - D20: show full text, not truncated */}
+          <div className="card">
+            <div className="card-header"><span className="card-title">Quick Script</span></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 280, overflowY: 'auto' }}>
+              {QUICK_TURNS.map((t, i) => (
+                <button key={i} className="btn btn-ghost btn-sm"
+                  style={{ justifyContent: 'flex-start', textAlign: 'left', fontSize: 11, whiteSpace: 'normal', height: 'auto', padding: '6px 8px' }}
+                  onClick={() => appendTurn(t.speaker, t.text)} disabled={!convId || ended || loading}>
+                  <span className={`badge ${t.speaker === 'agent' ? 'badge-blue' : 'badge-purple'}`} style={{ minWidth: 60, flexShrink: 0 }}>{t.speaker}</span>
+                  <span style={{ marginLeft: 6 }}>{t.text}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Middle: Transcript */}
