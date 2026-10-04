@@ -1,12 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api, setToken } from '../api';
-import { Lock, User, Activity } from 'lucide-react';
+import { Lock, User, Activity, Loader2 } from 'lucide-react';
 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [backendReady, setBackendReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const checkHealth = async () => {
+      try {
+        await fetch(`${API}/openapi.json`, { method: 'HEAD' });
+        if (mounted) setBackendReady(true);
+      } catch (e) {
+        if (mounted) setTimeout(checkHealth, 2500);
+      }
+    };
+    checkHealth();
+    return () => { mounted = false; };
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -96,6 +112,7 @@ export default function Login({ onLogin }) {
               autoComplete="username"
               autoFocus
               required
+              disabled={!backendReady || loading}
             />
           </div>
         </div>
@@ -114,6 +131,7 @@ export default function Login({ onLogin }) {
               placeholder="••••••••"
               autoComplete="current-password"
               required
+              disabled={!backendReady || loading}
             />
           </div>
         </div>
@@ -121,16 +139,27 @@ export default function Login({ onLogin }) {
         <button
           className="btn btn-primary btn-lg"
           style={{ width: '100%', justifyContent: 'center', marginTop: 10 }}
-          disabled={loading}
+          disabled={!backendReady || loading}
           type="submit"
         >
-          {loading ? (
+          {!backendReady ? (
             <>
-              <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+              <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', marginRight: 8 }} />
+              Waking up backend...
+            </>
+          ) : loading ? (
+            <>
+              <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block', marginRight: 8 }} />
               Signing in...
             </>
           ) : 'Sign In'}
         </button>
+
+        {!backendReady && (
+          <div style={{ marginTop: 14, textAlign: 'center', fontSize: 11, color: 'var(--amber)' }}>
+            Note: Free-tier deployments may take 1-2 minutes to wake up from sleep.
+          </div>
+        )}
 
         <div style={{ marginTop: 20, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
           Secured · Role-based access control
