@@ -403,6 +403,25 @@ async def clear_session_context(
     return JSONResponse({"ok": True})
 
 
+@router.post("/feedback")
+async def post_feedback(
+    req: FeedbackRequest,
+    session: DbSession,
+    current_user=Depends(get_current_user),
+):
+    """Save user feedback for an assistant message."""
+    from backend.assistant.models import AsstFeedback
+    
+    fb = AsstFeedback(
+        message_id=req.message_id,
+        rating=req.rating,
+        reason=req.reason,
+    )
+    session.add(fb)
+    await session.commit()
+    return JSONResponse({"ok": True})
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 async def _get_session_context(session: AsyncSession, session_id: str) -> dict:
