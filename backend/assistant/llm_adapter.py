@@ -67,17 +67,34 @@ class AssistantLLMAdapter:
         except BudgetExceededError as e:
             raise LLMBudgetExhaustedError(str(e)) from e
 
+        import asyncio, re as _re
+
         client = get_client()
-        try:
-            resp = await client.chat.completions.create(
-                model=s.llm_primary_model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
-                response_format={"type": "json_object"},
-                max_tokens=max_tokens,
-            )
-        except Exception as e:
-            raise LLMBudgetExhaustedError(f"LLM call failed: {e}") from e
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                resp = await client.chat.completions.create(
+                    model=s.llm_primary_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.0,
+                    response_format={"type": "json_object"},
+                    max_tokens=max_tokens,
+                )
+                last_exc = None
+                break
+            except Exception as e:
+                last_exc = e
+                msg = str(e)
+                if "429" in msg or "rate_limit" in msg.lower():
+                    # Extract wait time from Groq error message ("try again in X.XXs")
+                    m = _re.search(r"try again in (\d+\.?\d*)s", msg, _re.IGNORECASE)
+                    wait = float(m.group(1)) + 1.0 if m else (3.0 * (attempt + 1))
+                    await asyncio.sleep(min(wait, 15.0))
+                else:
+                    break  # non-rate-limit error, don't retry
+
+        if last_exc is not None:
+            raise LLMBudgetExhaustedError(f"LLM call failed: {last_exc}") from last_exc
 
         usage = resp.usage
         pt = usage.prompt_tokens if usage else 0
