@@ -611,7 +611,7 @@ export default function AssistantPanel({ currentRoute = '' }) {
                 Help
               </button>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, minWidth: 70, justifyContent: 'flex-end' }}>
               {messages.length > 0 && (
                 <button
                   id="asst-clear-btn"

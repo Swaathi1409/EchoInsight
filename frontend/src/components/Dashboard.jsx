@@ -110,30 +110,21 @@ function KPICard({ icon, label, value, sub, color, accentColor }) {
   const accent = accentColor || color || 'var(--accent)';
   return (
     <div className="card" style={{
-      display: 'flex', flexDirection: 'column', padding: '16px 20px',
-      position: 'relative', overflow: 'hidden',
+      display: 'flex', alignItems: 'flex-start', gap: 10, padding: '14px 16px',
+      position: 'relative', overflow: 'hidden', flex: 1, minWidth: 0,
       '--kpi-color': accent,
-      height: '100%', boxSizing: 'border-box',
-      borderTop: `3px solid ${accent}`
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {label}
-        </div>
-        <div style={{ color: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.8 }}>
-          {icon}
-        </div>
+      <div style={{
+        background: `${accent}18`, borderRadius: 10, padding: 8,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
+        {icon}
       </div>
-      
-      <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-heading)', lineHeight: 1, marginBottom: 8 }}>
-        {value ?? '—'}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-heading)', lineHeight: 1 }}>{value ?? '—'}</div>
+        {sub && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>}
       </div>
-      
-      {sub ? (
-        <div style={{ marginTop: 'auto', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3 }}>{sub}</div>
-      ) : (
-        <div style={{ marginTop: 'auto' }} />
-      )}
     </div>
   );
 }
@@ -349,7 +340,7 @@ export default function Dashboard({ onSelectConv }) {
       {error && <div className="error-banner" style={{ marginBottom: 16 }}>{error}</div>}
 
       {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
         <KPICard icon={<Activity size={20} color="var(--accent)" />} label="Total Analyzed" value={analyzed}
           sub={`${active} active${pendingAnalysis > 0 ? ` · ${pendingAnalysis} pending analysis` : ''}`} color="var(--accent)" />
         <KPICard icon={<CheckCircle size={20} color="var(--green)" />} label="Resolved" value={resolved}
@@ -389,7 +380,7 @@ export default function Dashboard({ onSelectConv }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Health Summary Bar */}
           <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12,
+            display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12,
             padding: '16px 20px', background: 'var(--bg-card)', borderRadius: 'var(--radius)',
             border: '1px solid var(--border)',
           }}>
@@ -398,28 +389,28 @@ export default function Dashboard({ onSelectConv }) {
               { label: 'False Resolution Rate', value: analyzed > 0 ? `${((withFR / analyzed) * 100).toFixed(0)}%` : '—', sub: `${withFR} flagged`, color: withFR > 0 ? 'var(--red)' : 'var(--green)' },
               { label: 'High Churn Exposure', value: total > 0 ? `${((churnCounts.high / total) * 100).toFixed(0)}%` : '—', sub: `${churnCounts.high} conversations`, color: churnCounts.high > 0 ? 'var(--red)' : 'var(--green)' },
             ].map(({ label, value, sub, color }) => (
-              <div key={label} style={{ textAlign: 'center', padding: '4px 0' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{label}</div>
+              <div key={label} style={{ textAlign: 'center', padding: '4px 0', minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
                 <div style={{ fontSize: 26, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{sub}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
               </div>
             ))}
           </div>
 
           {/* Charts Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <div className="card">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+            <div className="card" style={{ minWidth: 0 }}>
               <div className="card-header"><span className="card-title">Resolution Distribution</span></div>
               <DonutChart data={resolutionData} size={110} />
             </div>
-            <div className="card">
+            <div className="card" style={{ minWidth: 0 }}>
               <div className="card-header"><span className="card-title">Churn Risk Distribution</span></div>
               <DonutChart data={churnData} size={110} />
             </div>
           </div>
 
           {/* Call Reasons */}
-          <div className="card">
+          <div className="card" style={{ minWidth: 0 }}>
             <div className="card-header">
               <span className="card-title">Top Call Reasons</span>
               {reasonData.length > 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{reasonData.length} categories</span>}
