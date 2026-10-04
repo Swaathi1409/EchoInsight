@@ -217,7 +217,7 @@ def _build_chips(role: str, route: str) -> list[dict]:
         {"label": "False resolutions", "question": "Show conversations flagged as false resolutions"},
     ]
     if role in ("admin", "supervisor"):
-        base.append({"label": "Team QA scores", "question": "Which teams have the lowest QA scores?"})
+        base.append({"label": "Agent QA scores", "question": "Which agent has the lowest QA score?"})
     if role == "admin":
         base.append({"label": "System health", "question": "How is system health and token usage?"})
 
