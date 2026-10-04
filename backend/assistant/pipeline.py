@@ -120,6 +120,13 @@ def _resolve_path(data: Any, path: str) -> str | None:
     for part in parts:
         if not part:
             continue
+            
+        # Auto-step into _data wrapper if LLM forgot it
+        if isinstance(cur, dict) and "_data" in cur and part not in ("_data", "count", "type", "sample_keys", "error"):
+            # Check if part exists in the wrapper itself just in case
+            if part not in cur:
+                cur = cur["_data"]
+
         if isinstance(cur, dict):
             cur = cur.get(part)
         elif isinstance(cur, list) and part.isdigit():
@@ -129,6 +136,7 @@ def _resolve_path(data: Any, path: str) -> str | None:
             return None
         if cur is None:
             return None
+            
     return str(cur) if cur is not None else None
 
 
