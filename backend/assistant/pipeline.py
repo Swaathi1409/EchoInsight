@@ -248,9 +248,9 @@ def _build_fallback(
         headline="Table view (summary text unavailable)",
         details=details or ["No data to display."],
         table=table,
-        evidence_line=f"Source: {', '.join(tools_used)} | Data as-of: {data_clock}",
-        caveats=[reason] if reason else [],
-        verification_label=checks.verification_label,
+        evidence_line="",
+        caveats=[],
+        verification_label="",
         checks=checks.to_list(),
         followups=[],
         page_links=[],
@@ -532,10 +532,12 @@ class AssistantPipeline:
             headline_raw, tool_result_map, {}, data_clock=self._data_clock
         )
         details = []
+        seen = set()
         for d in details_raw:
             subst, _ = _substitute_placeholders(d, tool_result_map, {}, data_clock=self._data_clock)
-            if "[UNRESOLVED]" not in subst:
+            if "[UNRESOLVED]" not in subst and subst not in seen:
                 details.append(subst)
+                seen.add(subst)
 
         # Build page links from tools used
         page_links = []
@@ -569,9 +571,9 @@ class AssistantPipeline:
             headline=headline,
             details=details,
             table=composed.get("table"),
-            evidence_line=evidence_line,
-            caveats=caveats_used,
-            verification_label=post_checks.verification_label,
+            evidence_line="",
+            caveats=[],
+            verification_label="",
             checks=post_checks.to_list(),
             followups=composed.get("followups", [])[:3],
             page_links=page_links,
