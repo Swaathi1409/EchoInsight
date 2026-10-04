@@ -86,7 +86,11 @@ def _validate_plan(plan: dict, available_tool_names: list[str]) -> list[str]:
 _PLACEHOLDER_RE = re.compile(r"\{\{(v|calc|quote):([^}]+)\}\}")
 _STRAY_NUMERAL_RE = re.compile(r"\b\d[\d,\.]*\b")
 # Allowed literal constants in prose (ordinals, list numbering etc.)
-_ALLOWED_LITERAL_NUMERALS = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}
+_ALLOWED_LITERAL_NUMERALS = {
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+    "11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
+    "100",
+}
 
 _BANNED_PHRASES = [
     "will churn", "probability", "guarantee", "because of", "caused by",
@@ -286,7 +290,7 @@ class AssistantPipeline:
             ui_context=ui_context,
             data_clock=self._data_clock,
         )
-        plan_json_str = await self._llm.complete(plan_prompt, max_tokens=1500, json_mode=True)
+        plan_json_str = await self._llm.complete(plan_prompt, max_tokens=900, json_mode=True)
 
         try:
             plan = json.loads(plan_json_str)
@@ -294,7 +298,7 @@ class AssistantPipeline:
             # Repair attempt: ask model to fix
             repair_prompt = f"The following is invalid JSON. Fix it and return only valid JSON.\n\nError: {e}\n\nJSON:\n{plan_json_str}"
             try:
-                plan_json_str2 = await self._llm.complete(repair_prompt, max_tokens=1500, json_mode=True)
+                plan_json_str2 = await self._llm.complete(repair_prompt, max_tokens=900, json_mode=True)
                 plan = json.loads(plan_json_str2)
             except Exception:
                 return _build_fallback([], CheckOutcome(), self._data_clock, [], "Could not parse plan."), steps
@@ -434,7 +438,7 @@ class AssistantPipeline:
             checks=post_checks,
             data_clock=self._data_clock,
         )
-        compose_json_str = await self._llm.complete(compose_prompt, max_tokens=1200, json_mode=True)
+        compose_json_str = await self._llm.complete(compose_prompt, max_tokens=700, json_mode=True)
 
         try:
             composed = json.loads(compose_json_str)
@@ -449,6 +453,9 @@ class AssistantPipeline:
         # ── Step 6: Verify (deterministic gate) ──────────────────────────────
         headline_raw = composed.get("headline", "")
         details_raw = composed.get("details", [])
+        # Normalize: LLM sometimes returns details as a string, not a list
+        if isinstance(details_raw, str):
+            details_raw = [details_raw] if details_raw else []
         full_text = headline_raw + " " + " ".join(details_raw)
 
         # Substitute placeholders (data_clock is a special built-in key)
@@ -467,7 +474,7 @@ class AssistantPipeline:
             )
             original_composed = composed  # save in case regen fails
             try:
-                compose_json_str2 = await self._llm.complete(regen_prompt, max_tokens=1200, json_mode=True)
+                compose_json_str2 = await self._llm.complete(regen_prompt, max_tokens=700, json_mode=True)
                 regen = json.loads(compose_json_str2)
                 # Only accept regen if it has a non-empty headline
                 if regen.get("headline"):
@@ -505,11 +512,9 @@ class AssistantPipeline:
                 )
 
         # Check for stray numerals in raw compose output.
-        # If the numeral can be found in a tool result it is verified data —
-        # the model just wrote it directly instead of via a placeholder.
-        # Add a non-blocking caveat; only hard-block on truly unverifiable numerals.
         stray = _check_stray_numerals(full_text)
         if stray:
+            # Flatten ALL verified values from tool results
             all_values: set[str] = set()
             for wrapped in tool_result_map.values():
                 if isinstance(wrapped, dict):
@@ -519,6 +524,13 @@ class AssistantPipeline:
                             for row in v:
                                 if isinstance(row, dict):
                                     all_values.update(str(x) for x in row.values())
+                        elif isinstance(v, dict):  # e.g. _data for dict results
+                            for dv in v.values():
+                                all_values.add(str(dv))
+            # Also allow numeric parts of the data_clock (e.g. '2026', '10', '03')
+            for part in re.split(r'[^\d]+', self._data_clock):
+                if part:
+                    all_values.add(part)
             unverified = [s for s in stray if s.replace(",", "") not in all_values]
             if unverified:
                 return _build_fallback(

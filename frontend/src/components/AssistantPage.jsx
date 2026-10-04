@@ -260,11 +260,14 @@ export default function AssistantPage({ currentRoute = '' }) {
       if (data.session_id && !sessionId) setSessionId(data.session_id);
       setMessages(prev => [...prev, { role: 'assistant', answer: data.answer, message_id: data.message_id }]);
     } catch (err) {
+      const is429 = String(err).includes('429');
       setMessages(prev => [...prev, {
         role: 'assistant',
         answer: {
-          headline: 'Something went wrong. Please try again.',
-          details: [String(err)],
+          headline: is429
+            ? 'Rate limit reached — please wait a few seconds and try again.'
+            : 'Something went wrong. Please try again.',
+          details: is429 ? [] : [String(err)],
           verification_label: 'could_not_verify',
           evidence_line: '', caveats: [], checks: [], followups: [], page_links: [], is_fallback: true,
         },
