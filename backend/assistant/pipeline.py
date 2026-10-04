@@ -616,7 +616,7 @@ def _build_plan_prompt(
 <question>{question}</question>
 
 Rules:
-1. Choose tools ONLY from capabilities. If out of scope (predictions, causes, money, satisfaction, other users data, data changes), set out_of_scope=true with reason.
+1. Choose tools ONLY from capabilities. If out of scope (predictions, causes, money, satisfaction, other users data, data changes, or aggregate team metrics where no tool exists), set out_of_scope=true with reason.
 2. Split multi-part questions into sub_questions. Each step uses only listed tools with valid params.
 3. Never invent tool names, parameters, enum values, IDs or dates.
 4. If a needed value is missing and has no safe default, set needs_clarification=true and write ONE short question with 2-4 option labels.

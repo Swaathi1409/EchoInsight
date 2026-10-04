@@ -110,6 +110,8 @@ const cleanText = (s) => {
 function AnswerMessage({ answer, isFallback }) {
   const [showChecks, setShowChecks] = useState(false);
 
+  if (!answer) return null;
+
   const cleanedCaveats = (answer.caveats || []).filter(c => !/Synthetic/i.test(c));
   const cleanedChecks = (answer.checks || []).map(c => ({
     ...c,

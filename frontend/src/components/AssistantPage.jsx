@@ -104,6 +104,8 @@ const cleanText = (s) => {
 function AnswerBubble({ answer, onSend }) {
   const [showChecks, setShowChecks] = useState(false);
 
+  if (!answer) return null;
+
   const cleanedCaveats = (answer.caveats || []).filter(c => !/Synthetic/i.test(c));
   const cleanedChecks = (answer.checks || []).map(c => ({
     ...c,
@@ -138,7 +140,7 @@ function AnswerBubble({ answer, onSend }) {
       )}
 
       {/* Table */}
-      <AnswerTable table={answer.table} />
+      {answer.table && <AnswerTable table={answer.table} />}
 
       {/* Caveats */}
       {cleanedCaveats.length > 0 && (
