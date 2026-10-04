@@ -142,6 +142,34 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
         raw, pt, ct = await chat_json(analysis_messages, FINAL_ANALYSIS_SCHEMA)
         logger.info("Final analysis LLM call: prompt=%d completion=%d", pt, ct)
 
+    # D14 fix: Augment LLM sentiment trajectory from incremental provisional state.
+    # The per-turn extractor captures sentiment on every turn. The final analysis LLM
+    # tends to return all-neutral for short/polite transcripts. If it does, fall back
+    # to the incremental trajectory which was built turn-by-turn.
+    llm_trajectory = raw.get("sentiment_trajectory", [])
+    non_neutral_count = sum(1 for pt_ in llm_trajectory if pt_.get("sentiment", "neutral") != "neutral")
+    all_neutral = (not llm_trajectory) or (non_neutral_count == 0)
+    if all_neutral:
+        # Load provisional state from conversation row (set during incremental extraction)
+        prov_conv = (await session.execute(
+            select(Conversation).where(Conversation.id == conversation_id)
+        )).scalar_one_or_none()
+        if prov_conv and prov_conv.provisional_state_json:
+            import json as _json
+            prov = prov_conv.provisional_state_json if isinstance(prov_conv.provisional_state_json, dict) \
+                else _json.loads(prov_conv.provisional_state_json)
+            prov_traj = prov.get("sentiment_trajectory", [])
+            if prov_traj:
+                logger.info(
+                    "D14: LLM returned all-neutral trajectory (%d pts); using incremental trajectory (%d pts)",
+                    len(llm_trajectory), len(prov_traj)
+                )
+                raw["sentiment_trajectory"] = prov_traj
+            else:
+                logger.debug("D14: Incremental trajectory also empty; keeping LLM result")
+        else:
+            logger.debug("D14: No provisional state found; keeping LLM result")
+
     # Gate commitments
     gated_commitments = gate_commitments(raw.get("commitments", []), turns_by_id)
 
@@ -150,7 +178,27 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
         qa_transcript, _ = _build_transcript(turns[-WINDOW_SIZE:])
     else:
         qa_transcript = transcript
-    qa_messages = build_qa_messages(qa_transcript)
+        
+    from backend.models import QAChecklist, QAChecklistVersion, QAChecklistItem
+    from sqlalchemy.orm import selectinload
+    # Load the active checklist version
+    # Fallback to example if not found
+    checklist_key = POLICY_VERSION.split("_")[0] if "_" in POLICY_VERSION else POLICY_VERSION
+    q_ver = select(QAChecklistVersion).join(QAChecklist).where(
+        QAChecklist.key == checklist_key,
+        QAChecklistVersion.status == "active"
+    ).order_by(QAChecklistVersion.version_number.desc()).limit(1)
+    
+    active_version = (await session.execute(q_ver)).scalar_one_or_none()
+    
+    if active_version:
+        q_items = select(QAChecklistItem).where(QAChecklistItem.version_id == active_version.id).order_by(QAChecklistItem.display_order)
+        db_items = (await session.execute(q_items)).scalars().all()
+    else:
+        # Fallback to empty if not found, though bootstrap should ensure it exists
+        db_items = []
+
+    qa_messages = build_qa_messages(qa_transcript, db_items)
     qa_raw, qa_pt, qa_ct = await chat_json(qa_messages, QA_SCHEMA)
     logger.info("QA LLM call: prompt=%d completion=%d", qa_pt, qa_ct)
 
@@ -207,7 +255,35 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
         logger.warning("Selective verification failed: %s", exc)
         qa_items_verified = qa_items_gated
 
-    qa_result_data = qa_score(qa_items_verified)
+    # D7 fix: Evidence-based confidence normalization.
+    # Override the LLM's tendency to return constant 0.9-0.95 for all items.
+    for item in qa_items_verified:
+        # If phrase_matcher set confidence to 1.0, preserve it.
+        if item.get("confidence") == 1.0:
+            continue
+        quote = (item.get("quote") or "").strip()
+        turn_id = (item.get("turn_id") or "").strip()
+        result = item.get("result", "")
+        if result == "not_applicable":
+            # not_applicable: doesn't need evidence
+            item["confidence"] = round(item.get("confidence", 0.9), 2)
+        elif quote and len(quote) >= 5 and turn_id:
+            # Has both quote and turn reference — strong evidence
+            # Only upgrade if LLM returned a plausibly calibrated value
+            item["confidence"] = max(item.get("confidence", 0.8), 0.82)
+        elif quote and len(quote) >= 5:
+            # Has quote but no turn_id — moderate evidence
+            item["confidence"] = min(item.get("confidence", 0.75), 0.84)
+        elif turn_id:
+            # Has turn reference but no quote — weak-moderate
+            item["confidence"] = min(item.get("confidence", 0.65), 0.74)
+        else:
+            # No evidence at all
+            item["confidence"] = min(item.get("confidence", 0.55), 0.60)
+        item["confidence"] = round(item["confidence"], 2)
+
+    settings = active_version.settings if active_version else {}
+    qa_result_data = qa_score(qa_items_verified, db_items=db_items, settings=settings)
 
     # Validator hard gate: all 7 conditions must pass
     try:
@@ -243,6 +319,7 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
         model=s.llm_primary_model,
         prompt_version=PROMPT_VERSION,
         policy_version=POLICY_VERSION,
+        checklist_version_id=active_version.id if active_version else None,
         taxonomy_version=1,
         summary=raw.get("summary", ""),
         reasons_json=raw.get("reasons", []),
@@ -264,6 +341,7 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
         conversation_id=conversation_id,
         analysis_version=version,
         checklist_version=POLICY_VERSION,
+        checklist_version_id=active_version.id if active_version else None,
         score=qa_result_data["score"],
         score_label=qa_result_data["score_label"],
         coverage=qa_result_data["coverage"],
@@ -275,10 +353,22 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
     )
     session.add(qa_result)
 
+    # D4 fix: Prevent duplicate commitments across analysis versions.
+    # Delete previous non-provisional commitments for this conversation before
+    # inserting the fresh set from the current analysis.
+    from sqlalchemy import delete as sa_delete
+    await session.execute(
+        sa_delete(Commitment).where(
+            Commitment.conversation_id == conversation_id,
+            Commitment.provisional == False,  # noqa: E712
+        )
+    )
+    await session.flush()
+
     # Persist commitments
     for c in gated_commitments:
         commitment = Commitment(
-            commitment_id=c.get("commitment_id", str(uuid.uuid4())),
+            commitment_id=str(uuid.uuid4()),  # always fresh id after delete
             conversation_id=conversation_id,
             description=c.get("description", ""),
             owner=c.get("owner", ""),

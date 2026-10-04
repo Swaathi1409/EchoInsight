@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
-import { Send, Plus, PhoneOff, Mic, ExternalLink, Trash2 } from 'lucide-react';
+import { Send, Plus, PhoneOff, Mic, ExternalLink, Trash2, Activity, CheckCircle, AlertTriangle, TrendingUp } from 'lucide-react';
 
 let _idKey = 0;
 const nextKey = () => `demo-${Date.now()}-${++_idKey}`;
@@ -10,11 +10,98 @@ const STORAGE_KEY = 'echoinsight_demo_session';
 function loadSession() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch { return null; }
 }
-function saveSession(data) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
-function clearSession() {
-  localStorage.removeItem(STORAGE_KEY);
+function saveSession(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function clearSession() { localStorage.removeItem(STORAGE_KEY); }
+
+const SENTIMENT_COLOR = {
+  positive: 'var(--green)', neutral: 'var(--text-muted)',
+  frustrated: 'var(--amber)', angry: 'var(--red)',
+};
+
+const COMMITMENT_STATUS_BADGE = {
+  proposed: 'badge-amber', accepted: 'badge-blue', scheduled: 'badge-blue',
+  completed: 'badge-green', cancelled: 'badge-gray', uncertain: 'badge-amber',
+};
+
+// D20: Provisional state panel displayed after each turn append
+function ProvisionalStatePanel({ state, commitments }) {
+  if (!state && (!commitments || commitments.length === 0)) {
+    return (
+      <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
+        <Activity size={24} style={{ marginBottom: 8, opacity: 0.4 }} />
+        <p style={{ fontSize: 13 }}>Provisional state updates after each turn is appended.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Live state */}
+      {state && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.08em', marginBottom: 10 }}>
+            Live State <span className="badge badge-amber" style={{ fontSize: 9, verticalAlign: 'middle', marginLeft: 4 }}>provisional</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {state.issue && (
+              <div className="insight-row">
+                <span className="insight-label" style={{ width: 90 }}>Issue</span>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{state.issue}</span>
+              </div>
+            )}
+            {state.resolution && (
+              <div className="insight-row">
+                <span className="insight-label" style={{ width: 90 }}>Resolution</span>
+                <span style={{ fontSize: 12, textTransform: 'capitalize', color: 'var(--text-primary)' }}>{state.resolution?.replace(/_/g, ' ')}</span>
+              </div>
+            )}
+            {state.customer_sentiment && (
+              <div className="insight-row">
+                <span className="insight-label" style={{ width: 90 }}>Sentiment</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: SENTIMENT_COLOR[state.customer_sentiment] || 'var(--text-muted)' }}>
+                  {state.customer_sentiment}
+                </span>
+              </div>
+            )}
+            {state.churn_risk && state.churn_risk !== 'low' && (
+              <div className="insight-row">
+                <span className="insight-label" style={{ width: 90 }}>Churn Risk</span>
+                <span className={`badge ${state.churn_risk === 'high' ? 'badge-red' : 'badge-amber'}`}>{state.churn_risk}</span>
+              </div>
+            )}
+            {state.unresolved_questions && state.unresolved_questions.length > 0 && (
+              <div className="insight-row">
+                <span className="insight-label" style={{ width: 90 }}>Open Items</span>
+                <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: 'var(--amber)' }}>
+                  {state.unresolved_questions.map((q, i) => <li key={i}>{q}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Live commitment ledger */}
+      {commitments && commitments.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', marginBottom: 8 }}>
+            Commitment Ledger ({commitments.length})
+          </div>
+          {commitments.map((c, i) => (
+            <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <span className={`badge ${COMMITMENT_STATUS_BADGE[c.status] || 'badge-gray'}`} style={{ flexShrink: 0 }}>{c.status}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12 }}>{c.description}</div>
+                {c.owner && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Owner: {c.owner}</div>}
+                {c.deadline && <div style={{ fontSize: 11, color: 'var(--amber)' }}>Due: {c.deadline}</div>}
+              </div>
+              {c.provisional && <span style={{ fontSize: 9, color: 'var(--amber)', fontStyle: 'italic' }}>provisional</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function LiveDemo() {
@@ -25,13 +112,23 @@ export default function LiveDemo() {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [ended, setEnded] = useState(saved?.ended || false);
-  const [msg, setMsg] = useState(saved?.convId ? `Session restored: ${saved.convId.slice(0,8)}` : '');
+  const [msg, setMsg] = useState(saved?.convId ? `Session restored: ${saved.convId.slice(0, 8)}` : '');
   const [jobId, setJobId] = useState(saved?.jobId || null);
+  // D20: Track provisional state and ledger from last append response
+  const [provisionalState, setProvisionalState] = useState(saved?.provisionalState || null);
+  const [ledger, setLedger] = useState(saved?.ledger || []);
+  const transcriptRef = useRef(null);
 
-  // Persist to localStorage whenever key state changes
   useEffect(() => {
-    if (convId) saveSession({ convId, turns, ended, jobId });
-  }, [convId, turns, ended, jobId]);
+    if (convId) saveSession({ convId, turns, ended, jobId, provisionalState, ledger });
+  }, [convId, turns, ended, jobId, provisionalState, ledger]);
+
+  // Auto-scroll transcript
+  useEffect(() => {
+    if (transcriptRef.current) {
+      transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
+    }
+  }, [turns]);
 
   const createConv = async () => {
     setLoading(true); setMsg('');
@@ -41,6 +138,8 @@ export default function LiveDemo() {
       setTurns([]);
       setEnded(false);
       setJobId(null);
+      setProvisionalState(null);
+      setLedger([]);
       setMsg(`Conversation started: ${c.id.slice(0, 8)}`);
     } catch (e) { setMsg(`Error: ${e.message}`); }
     finally { setLoading(false); }
@@ -48,16 +147,21 @@ export default function LiveDemo() {
 
   const resetSession = () => {
     clearSession();
-    setConvId(null); setTurns([]); setEnded(false); setJobId(null); setMsg('Session cleared.');
+    setConvId(null); setTurns([]); setEnded(false); setJobId(null);
+    setProvisionalState(null); setLedger([]);
+    setMsg('Session cleared.');
   };
 
-  const appendTurn = async () => {
-    if (!convId || !text.trim()) return;
+  const appendTurn = async (spk = speaker, t = text) => {
+    if (!convId || !t.trim()) return;
     setLoading(true);
     try {
-      const res = await api.appendTurn(convId, speaker, text, nextKey());
-      setTurns(prev => [...prev, { ...res, text_original: text }]);
-      setText('');
+      const res = await api.appendTurn(convId, spk, t, nextKey());
+      setTurns(prev => [...prev, { ...res, text_original: t }]);
+      // D20: Update provisional state and ledger from response
+      if (res.provisional_state) setProvisionalState(res.provisional_state);
+      if (res.ledger) setLedger(res.ledger);
+      if (spk === speaker) setText('');
     } catch (e) { setMsg(`Error: ${e.message}`); }
     finally { setLoading(false); }
   };
@@ -87,35 +191,35 @@ export default function LiveDemo() {
     { speaker: 'agent', text: 'Thank you for calling Union Mobile. Have a great day.' },
   ];
 
-  const addQuick = async (t) => {
-    if (!convId || ended) return;
-    setLoading(true);
-    try {
-      const res = await api.appendTurn(convId, t.speaker, t.text, nextKey());
-      setTurns(prev => [...prev, res]);
-    } catch (e) { setMsg(`Error: ${e.message}`); }
-    finally { setLoading(false); }
-  };
-
   return (
     <div className="page">
-      <div style={{ marginBottom: 20 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700 }}>Live Demo</h2>
+      <div style={{ marginBottom: 16 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Live Console</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
-          Create a conversation, add turns, and end it to queue analysis.
+          Create a conversation, append turns, and watch the provisional state and commitment ledger update in real time.
         </p>
       </div>
 
-      {msg && <div className="error-banner" style={{ background: msg.startsWith('Error') ? 'var(--red-bg)' : 'var(--green-bg)', borderColor: msg.startsWith('Error') ? 'var(--red)' : 'var(--green)', color: msg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{msg}</div>}
+      {msg && (
+        <div className="error-banner" style={{
+          marginBottom: 12,
+          background: msg.startsWith('Error') ? 'var(--red-bg)' : 'var(--green-bg)',
+          borderColor: msg.startsWith('Error') ? 'var(--red)' : 'var(--green)',
+          color: msg.startsWith('Error') ? 'var(--red)' : 'var(--green)',
+        }}>{msg}</div>
+      )}
 
-      <div className="grid-2">
-        {/* Controls */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr 300px', gap: 14 }}>
+
+        {/* Left: Controls */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Session */}
           <div className="card">
-            <div className="card-header"><span className="card-title">Session</span>
+            <div className="card-header">
+              <span className="card-title">Session</span>
               {convId && <button className="btn btn-ghost btn-sm" onClick={resetSession} style={{ color: 'var(--red)', fontSize: 11 }} title="Clear session"><Trash2 size={11} /> Clear</button>}
             </div>
-            <button className="btn btn-primary" onClick={createConv} disabled={loading} style={{ marginBottom: 12 }}>
+            <button className="btn btn-primary" onClick={createConv} disabled={loading} style={{ marginBottom: 10, width: '100%' }}>
               <Plus size={14} /> {convId ? 'New Conversation' : 'Start Conversation'}
             </button>
             {convId && (
@@ -125,82 +229,98 @@ export default function LiveDemo() {
               </div>
             )}
             {convId && !ended && (
-              <button className="btn btn-ghost" style={{ borderColor: 'var(--red)', color: 'var(--red)', marginBottom: 8 }} onClick={endConv} disabled={loading}>
+              <button className="btn btn-ghost" style={{ borderColor: 'var(--red)', color: 'var(--red)', marginBottom: 8, width: '100%' }} onClick={endConv} disabled={loading}>
                 <PhoneOff size={14} /> End Conversation
               </button>
             )}
             {convId && (
-              <button className="btn btn-ghost btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              <button className="btn btn-ghost btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}
                 onClick={() => { window.location.hash = `#/conversation/${convId}`; }}>
                 <ExternalLink size={12} /> View in Dashboard
               </button>
             )}
-            {jobId && (
-              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--amber)' }}>
-                Analysis queued — check the conversation page in ~30s
-              </div>
-            )}
-          </div>
-
-          <div className="card">
-            <div className="card-header"><span className="card-title">Quick Script</span></div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
-              {QUICK_TURNS.map((t, i) => (
-                <button key={i} className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start', textAlign: 'left', fontSize: 11 }}
-                  onClick={() => addQuick(t)} disabled={!convId || ended || loading}>
-                  <span className={`badge ${t.speaker === 'agent' ? 'badge-blue' : 'badge-purple'}`} style={{ minWidth: 60 }}>{t.speaker}</span>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.text.slice(0, 50)}…</span>
-                </button>
-              ))}
-            </div>
+            {jobId && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--amber)' }}>Analysis queued - check the conversation page in ~30s</div>}
           </div>
 
           {/* Manual Turn */}
           {convId && !ended && (
             <div className="card">
-              <div className="card-header"><span className="card-title">Manual Turn</span></div>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <div className="card-header"><span className="card-title">Custom Turn</span></div>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                 {['agent', 'customer'].map(s => (
-                  <button key={s} className={`btn ${speaker === s ? 'btn-primary' : 'btn-ghost'} btn-sm`} onClick={() => setSpeaker(s)} style={{ textTransform: 'capitalize' }}>{s}</button>
+                  <button key={s} className={`btn ${speaker === s ? 'btn-primary' : 'btn-ghost'} btn-sm`} onClick={() => setSpeaker(s)} style={{ textTransform: 'capitalize', flex: 1 }}>{s}</button>
                 ))}
               </div>
               <textarea className="input" value={text} onChange={e => setText(e.target.value)}
-                placeholder="Enter turn text..." rows={3} style={{ width: '100%', resize: 'vertical', marginBottom: 10 }}
+                placeholder="Enter turn text..." rows={3}
+                style={{ width: '100%', resize: 'vertical', marginBottom: 8, boxSizing: 'border-box' }}
                 onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) appendTurn(); }} />
-              <button className="btn btn-primary" onClick={appendTurn} disabled={!text.trim() || loading}>
-                <Send size={14} /> Send Turn
+              <button className="btn btn-primary btn-sm" onClick={() => appendTurn()} disabled={!text.trim() || loading} style={{ width: '100%' }}>
+                <Send size={13} /> Send Turn
               </button>
             </div>
           )}
-        </div>
 
-        {/* Transcript Preview */}
-        <div className="card" style={{ maxHeight: 600, overflowY: 'auto' }}>
-          <div className="card-header"><span className="card-title">Transcript Preview</span>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{turns.length} turns</span>
-          </div>
-          {turns.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-              <Mic size={24} style={{ marginBottom: 8, opacity: 0.4 }} />
-              <p>No turns yet. Create a conversation and add turns.</p>
-            </div>
-          ) : (
-            <div className="transcript">
-              {turns.map(t => (
-                <div key={t.turn_id} className={`turn turn-${t.speaker}`}>
-                  <div className="turn-avatar" style={{ fontSize: 9 }}>{t.speaker === 'agent' ? 'AGT' : 'CST'}</div>
-                  <div className="turn-body">
-                    <div className="turn-meta">
-                      <strong style={{ textTransform: 'capitalize' }}>{t.speaker}</strong>
-                      <span>{t.turn_id}</span>
-                      <span className={`badge ${t.extraction_status === 'completed' ? 'badge-green' : 'badge-gray'}`} style={{ fontSize: 9 }}>{t.extraction_status}</span>
-                    </div>
-                    <div className="turn-text">{t.text_redacted}</div>
-                  </div>
-                </div>
+          {/* Quick Script - D20: show full text, not truncated */}
+          <div className="card">
+            <div className="card-header"><span className="card-title">Quick Script</span></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 280, overflowY: 'auto' }}>
+              {QUICK_TURNS.map((t, i) => (
+                <button key={i} className="btn btn-ghost btn-sm"
+                  style={{ justifyContent: 'flex-start', textAlign: 'left', fontSize: 11, whiteSpace: 'normal', height: 'auto', padding: '6px 8px' }}
+                  onClick={() => appendTurn(t.speaker, t.text)} disabled={!convId || ended || loading}>
+                  <span className={`badge ${t.speaker === 'agent' ? 'badge-blue' : 'badge-purple'}`} style={{ minWidth: 60, flexShrink: 0 }}>{t.speaker}</span>
+                  <span style={{ marginLeft: 6 }}>{t.text}</span>
+                </button>
               ))}
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Middle: Transcript */}
+        <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column' }}>
+          <div className="card-header" style={{ padding: '12px 16px' }}>
+            <span className="card-title">Transcript</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{turns.length} turns</span>
+          </div>
+          <div ref={transcriptRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', maxHeight: 600 }}>
+            {turns.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+                <Mic size={24} style={{ marginBottom: 8, opacity: 0.4 }} />
+                <p style={{ fontSize: 13 }}>No turns yet. Start a conversation and add turns.</p>
+              </div>
+            ) : (
+              <div className="transcript">
+                {turns.map(t => (
+                  <div key={t.turn_id} className={`turn turn-${t.speaker}`}>
+                    <div className="turn-avatar" style={{ fontSize: 9 }}>{t.speaker === 'agent' ? 'AGT' : 'CST'}</div>
+                    <div className="turn-body">
+                      <div className="turn-meta">
+                        <strong style={{ textTransform: 'capitalize', color: t.speaker === 'agent' ? 'var(--accent-hover)' : 'var(--purple)', fontSize: 12 }}>{t.speaker}</strong>
+                        <code style={{ fontSize: 10, background: 'transparent', color: 'var(--text-muted)', padding: 0 }}>{t.turn_id}</code>
+                        <span className={`badge ${t.extraction_status === 'completed' ? 'badge-green' : 'badge-gray'}`} style={{ fontSize: 9 }}>{t.extraction_status}</span>
+                      </div>
+                      <div className="turn-text">{t.text_redacted}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: D20 Provisional State + Commitment Ledger */}
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Live State</span>
+            {convId && !ended && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--green)' }}>
+                <span className="live-indicator" />
+                live
+              </span>
+            )}
+          </div>
+          <ProvisionalStatePanel state={provisionalState} commitments={ledger} />
         </div>
       </div>
     </div>

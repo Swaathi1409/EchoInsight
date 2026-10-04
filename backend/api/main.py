@@ -84,6 +84,12 @@ async def lifespan(app: FastAPI):
 
     # Auto-migrate: ensure all model columns exist (SQLite-safe ALTER TABLE)
     await _auto_migrate(settings.database_url)
+    
+    # Bootstrap QA Checklists
+    from backend.db import get_db_session
+    from backend.bootstrap import bootstrap_qa_checklists
+    async with get_db_session() as session:
+        await bootstrap_qa_checklists(session)
 
     yield
 
@@ -102,6 +108,8 @@ async def _auto_migrate(database_url: str) -> None:
         return  # Postgres: use Alembic
     from backend.db import get_engine
     from backend.models import Base
+    import backend.action_layer.models  # noqa: F401 — registers act_* tables into Base.metadata
+    import backend.assistant.models  # noqa: F401 — registers asst_* tables into Base.metadata
     from sqlalchemy import text, inspect
     engine = get_engine()
     async with engine.begin() as conn:
@@ -256,6 +264,14 @@ def create_app() -> FastAPI:
     app.include_router(admin_router)
     app.include_router(stream_router)
     app.include_router(cases_router)
+
+    # Action Intelligence Layer (additive, guarded by master switch)
+    from backend.action_layer.api.router import router as action_router
+    app.include_router(action_router, prefix="/api/v1")
+
+    # Assistant (additive, guarded by ASSISTANT_ENABLED + DB toggle)
+    from backend.assistant.api.router import router as assistant_router
+    app.include_router(assistant_router)
 
     return app
 

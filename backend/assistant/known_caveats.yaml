@@ -1,0 +1,89 @@
+# backend/assistant/known_caveats.yaml
+# Registry of known data limitations.
+# Attached automatically to answers by check C10.
+# blocking: true means this caveat prevents answering the affected question part.
+
+caveats:
+
+  synthetic_agent_assignment:
+    label: "Synthetic agent/team assignment"
+    description: >
+      Agent and team assignments in this dataset are synthetically generated
+      and do not reflect real call-centre routing. Agent comparisons are for
+      demonstration only.
+    blocking: false
+    families: [F2, F6, F7, F8]
+
+  heuristic_churn:
+    label: "Heuristic churn indicator"
+    description: >
+      Churn risk is derived from keyword signals and sentiment patterns —
+      it is an automated heuristic indicator, not a confirmed outcome.
+      Do not use as the sole basis for operational decisions.
+    blocking: false
+    families: [F1, F2, F3, F6]
+
+  heuristic_risk:
+    label: "Heuristic risk index"
+    description: >
+      The Risk Index is computed from rule-based signals, not manual review.
+      It surfaces conversations for human attention, not final verdicts.
+    blocking: false
+    families: [F7]
+
+  small_n:
+    label: "Small sample size"
+    description: >
+      Rates and rankings computed from fewer than 10 conversations are
+      unreliable. Interpret with caution and do not generalise.
+    blocking: false   # non-blocking; C3 reports it but doesn't refuse
+    families: [F1, F2, F4, F6, F8]
+
+  redacted_text:
+    label: "Redacted conversation text"
+    description: >
+      Conversation turns shown to the assistant are redacted versions.
+      PII such as names, account numbers and addresses are masked.
+    blocking: false
+    families: [F3]
+
+  provisional_vs_final:
+    label: "Provisional vs final analysis"
+    description: >
+      Only final (non-provisional) analyses are used. Conversations still
+      being processed show no analysis data.
+    blocking: false
+    families: [F3, F4]
+
+  automated_analysis_only:
+    label: "Automated analysis, not manual audit"
+    description: >
+      QA scores and resolution labels come from automated LLM analysis,
+      not human audits. Use alongside direct observation and supervisor review.
+      Do not use as the sole basis for employment decisions.
+    blocking: false
+    families: [F4, F6]
+
+  duration_unreliable:
+    label: "Duration data unreliable"
+    description: >
+      Call duration fields are not reliably populated in this dataset.
+      Duration-based metrics should be interpreted with caution.
+    blocking: false
+    families: [F12]
+
+  no_cost_data:
+    label: "No cost or revenue data"
+    description: >
+      The system does not contain cost, revenue or financial impact data.
+      Questions about money or savings cannot be answered.
+    blocking: true
+    families: [F13]
+
+  no_satisfaction_score:
+    label: "No CSAT or satisfaction score"
+    description: >
+      The system does not contain customer satisfaction (CSAT) scores or
+      survey data. Sentiment is end-of-call indicator only, not a score.
+    blocking: true
+    families: [F13]

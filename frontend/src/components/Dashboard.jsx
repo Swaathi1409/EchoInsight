@@ -3,81 +3,127 @@ import { api } from '../api';
 import {
   AlertCircle, Clock, CheckCircle, XCircle, TrendingUp,
   RefreshCw, Filter, Search, ChevronDown, ChevronUp,
-  Users, Shield, BarChart2, AlertTriangle, Activity,
+  Users, Shield, BarChart2, AlertTriangle, Activity, Zap,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
-// Tiny chart helpers (no Recharts dependency required; pure CSS bars)
+// Premium bar chart — animated fills, left-side labels
 // ---------------------------------------------------------------------------
-
-function BarChart({ data, colorKey }) {
-  if (!data || data.length === 0) return <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No data</div>;
+function BarChart({ data }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setMounted(true), 60); return () => clearTimeout(t); }, []);
+  if (!data || data.length === 0) return <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>No data</div>;
   const max = Math.max(...data.map(d => d.value), 1);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {data.map(({ label, value, color }) => (
-        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 140, fontSize: 11, color: 'var(--text-secondary)', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {label.replace(/_/g, ' ')}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+      {data.map(({ label, value, color }) => {
+        const pct = (value / max) * 100;
+        return (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 150, fontSize: 11, color: 'var(--text-secondary)', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}
+              title={label.replace(/_/g, ' ')}>
+              {label.replace(/_/g, ' ')}
+            </div>
+            <div style={{ flex: 1, height: 16, background: 'var(--bg-secondary)', borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
+              <div style={{
+                height: '100%',
+                width: mounted ? `${pct}%` : '0%',
+                background: color || 'var(--accent)',
+                borderRadius: 4,
+                transition: 'width 0.55s cubic-bezier(0.4,0,0.2,1)',
+                opacity: 0.85,
+              }} />
+            </div>
+            <div style={{ width: 28, fontSize: 12, color: 'var(--text-muted)', textAlign: 'right', fontWeight: 600, flexShrink: 0 }}>{value}</div>
           </div>
-          <div style={{ flex: 1, height: 14, background: 'var(--bg-secondary)', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${(value / max) * 100}%`, background: color || 'var(--accent)', borderRadius: 3, transition: 'width 0.4s ease' }} />
-          </div>
-          <div style={{ width: 28, fontSize: 11, color: 'var(--text-muted)', textAlign: 'right' }}>{value}</div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-function DonutSegments({ data }) {
+// ---------------------------------------------------------------------------
+// SVG donut chart
+// ---------------------------------------------------------------------------
+function DonutChart({ data, size = 100 }) {
   if (!data || data.length === 0) return <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No data</div>;
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
+  const cx = size / 2, cy = size / 2, r = size * 0.38, stroke = size * 0.13;
+  const circumference = 2 * Math.PI * r;
+  let offset = 0;
+  const segments = data.map(({ label, value, color }) => {
+    const dash = (value / total) * circumference;
+    const seg = { label, value, color, dash, gap: circumference - dash, offset };
+    offset += dash;
+    return seg;
+  });
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-      {data.map(({ label, value, color }) => (
-        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 10, height: 10, borderRadius: 2, background: color || 'var(--accent)', flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            {label.replace(/_/g, ' ')} — {value} ({((value / total) * 100).toFixed(0)}%)
-          </span>
-        </div>
-      ))}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
+        {segments.map((s, i) => (
+          <circle key={i} cx={cx} cy={cy} r={r}
+            fill="none"
+            stroke={s.color || 'var(--accent)'}
+            strokeWidth={stroke}
+            strokeDasharray={`${s.dash} ${s.gap}`}
+            strokeDashoffset={-s.offset}
+            strokeLinecap="butt"
+            opacity={0.85}
+          />
+        ))}
+      </svg>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {data.map(({ label, value, color }) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: color || 'var(--accent)', flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              {label.replace(/_/g, ' ')}
+              <span style={{ marginLeft: 5, fontWeight: 700, color: 'var(--text-primary)' }}>{value}</span>
+              <span style={{ marginLeft: 4, color: 'var(--text-muted)', fontSize: 11 }}>({((value / (data.reduce((s,d)=>s+d.value,0)||1)) * 100).toFixed(0)}%)</span>
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Resolution color map
+// Resolution / status colors
 // ---------------------------------------------------------------------------
 const RESOLUTION_COLORS = {
-  resolved: 'var(--green)',
+  resolved:           'var(--green)',
   partially_resolved: 'var(--amber)',
-  pending: '#6366f1',
-  unresolved: 'var(--red)',
-  escalated: '#ec4899',
-  unknown: 'var(--text-muted)',
+  pending:            '#6366f1',
+  unresolved:         'var(--red)',
+  escalated:          '#ec4899',
+  unknown:            'var(--text-muted)',
 };
 const STATUS_COLORS = {
-  active: 'var(--amber)',
-  ended: 'var(--green)',
-  created: '#6366f1',
-  closed: 'var(--text-muted)',
+  active: 'var(--amber)', ended: 'var(--green)', created: '#6366f1', closed: 'var(--text-muted)',
 };
 
 // ---------------------------------------------------------------------------
-// KPI Card
+// KPI Card — premium with animated accent line
 // ---------------------------------------------------------------------------
-function KPICard({ icon, label, value, sub, color }) {
+function KPICard({ icon, label, value, sub, color, accentColor }) {
+  const accent = accentColor || color || 'var(--accent)';
   return (
-    <div className="card" style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '18px 20px' }}>
-      <div style={{ background: `${color}22`, borderRadius: 10, padding: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+    <div className="card" style={{
+      display: 'flex', alignItems: 'flex-start', gap: 10, padding: '14px 16px',
+      position: 'relative', overflow: 'hidden', flex: 1, minWidth: 0,
+      '--kpi-color': accent,
+    }}>
+      <div style={{
+        background: `${accent}18`, borderRadius: 10, padding: 8,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
         {icon}
       </div>
-      <div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
-        <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{value ?? '—'}</div>
-        {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{sub}</div>}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-heading)', lineHeight: 1 }}>{value ?? '—'}</div>
+        {sub && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>}
       </div>
     </div>
   );
@@ -91,12 +137,12 @@ function ScoreBar({ score, coverage }) {
   const color = score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--amber)' : 'var(--red)';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div style={{ width: 60, height: 6, background: 'var(--bg-secondary)', borderRadius: 3, overflow: 'hidden' }}>
+      <div style={{ width: 60, height: 5, background: 'var(--bg-secondary)', borderRadius: 3, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${score}%`, background: color, borderRadius: 3 }} />
       </div>
-      <span style={{ fontSize: 12, color, fontWeight: 600 }}>{score}</span>
+      <span style={{ fontSize: 12, color, fontWeight: 700 }}>{score}</span>
       {coverage != null && coverage < 0.7 && (
-        <span style={{ fontSize: 10, color: 'var(--amber)', background: 'var(--amber-bg)', padding: '1px 5px', borderRadius: 3 }}>partial</span>
+        <span style={{ fontSize: 10, color: 'var(--amber)', background: 'var(--amber-soft)', padding: '1px 5px', borderRadius: 3 }}>partial</span>
       )}
     </div>
   );
@@ -195,34 +241,34 @@ export default function Dashboard({ onSelectConv }) {
   const total = convs.length;
   const ended = convs.filter(c => c.status === 'ended').length;
   const active = convs.filter(c => c.status === 'active').length;
+  // D3: analyzed means a final analysis exists (analysis_version > 0)
+  const analyzed = convs.filter(c => (c.analysis_version || 0) > 0).length;
+  const pendingAnalysis = ended - convs.filter(c => c.status === 'ended' && (c.analysis_version || 0) > 0).length;
 
   const withQA = convs.filter(c => c.qa_score != null);
   const avgQA = withQA.length
     ? Math.round(withQA.reduce((s, c) => s + c.qa_score, 0) / withQA.length)
     : null;
 
-  const resolved = convs.filter(c => {
-    const r = c.resolution || (c.analysis?.resolution);
-    return r === 'resolved';
-  }).length;
+  const resolved = convs.filter(c => c.resolution === 'resolved').length;
 
   const withFR = convs.filter(c => c.false_resolution).length;
   const openCommitCount = commitments.length;
 
-  // Resolution distribution
+  // Resolution distribution - use top-level resolution field from list API
   const resolutionCounts = {};
   convs.forEach(c => {
-    const r = c.analysis?.resolution || 'unknown';
+    const r = c.resolution || (c.status === 'active' ? 'active' : 'unknown');
     resolutionCounts[r] = (resolutionCounts[r] || 0) + 1;
   });
   const resolutionData = Object.entries(resolutionCounts)
     .map(([label, value]) => ({ label, value, color: RESOLUTION_COLORS[label] }))
     .sort((a, b) => b.value - a.value);
 
-  // Call reason distribution (from analysis)
+  // Call reason distribution - use top-level reasons field from list API
   const reasonCounts = {};
   convs.forEach(c => {
-    (c.analysis?.reasons || []).forEach(r => {
+    (c.reasons || []).forEach(r => {
       reasonCounts[r] = (reasonCounts[r] || 0) + 1;
     });
   });
@@ -278,10 +324,10 @@ export default function Dashboard({ onSelectConv }) {
     <div className="page">
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Conversation Intelligence</h1>
+      <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>EchoInsight Overview</h2>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-            {total} conversations — last refreshed {new Date().toLocaleTimeString()}
+            {total} conversations — {active} active — last refreshed {new Date().toLocaleTimeString()}
           </p>
         </div>
         <button className="btn btn-ghost btn-sm" onClick={() => loadAll(true)} disabled={refreshing}
@@ -294,11 +340,11 @@ export default function Dashboard({ onSelectConv }) {
       {error && <div className="error-banner" style={{ marginBottom: 16 }}>{error}</div>}
 
       {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
-        <KPICard icon={<Activity size={20} color="var(--accent)" />} label="Total Analyzed" value={total}
-          sub={`${active} active`} color="var(--accent)" />
+      <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+        <KPICard icon={<Activity size={20} color="var(--accent)" />} label="Total Analyzed" value={analyzed}
+          sub={`${active} active${pendingAnalysis > 0 ? ` · ${pendingAnalysis} pending analysis` : ''}`} color="var(--accent)" />
         <KPICard icon={<CheckCircle size={20} color="var(--green)" />} label="Resolved" value={resolved}
-          sub={total ? `${((resolved / total) * 100).toFixed(0)}% of all` : ''} color="var(--green)" />
+          sub={analyzed ? `${((resolved / analyzed) * 100).toFixed(0)}% of analyzed` : ''} color="var(--green)" />
         <KPICard icon={<BarChart2 size={20} color="var(--accent)" />} label="Avg QA Score" value={avgQA}
           sub={`${withQA.length} scored`} color="var(--accent)" />
         <KPICard icon={<AlertCircle size={20} color="var(--amber)" />} label="Open Commitments" value={openCommitCount}
@@ -331,19 +377,44 @@ export default function Dashboard({ onSelectConv }) {
 
       {/* ---- OVERVIEW TAB ---- */}
       {activeTab === 'overview' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div className="card">
-            <div className="card-header"><span className="card-title">Resolution Distribution</span></div>
-            <DonutSegments data={resolutionData} />
-            <div style={{ marginTop: 16 }}><BarChart data={resolutionData} /></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Health Summary Bar */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12,
+            padding: '16px 20px', background: 'var(--bg-card)', borderRadius: 'var(--radius)',
+            border: '1px solid var(--border)',
+          }}>
+            {[
+              { label: 'Resolution Rate', value: analyzed > 0 ? `${((resolved / analyzed) * 100).toFixed(0)}%` : '—', sub: `${resolved} of ${analyzed} analyzed`, color: 'var(--green)' },
+              { label: 'False Resolution Rate', value: analyzed > 0 ? `${((withFR / analyzed) * 100).toFixed(0)}%` : '—', sub: `${withFR} flagged`, color: withFR > 0 ? 'var(--red)' : 'var(--green)' },
+              { label: 'High Churn Exposure', value: total > 0 ? `${((churnCounts.high / total) * 100).toFixed(0)}%` : '—', sub: `${churnCounts.high} conversations`, color: churnCounts.high > 0 ? 'var(--red)' : 'var(--green)' },
+            ].map(({ label, value, sub, color }) => (
+              <div key={label} style={{ textAlign: 'center', padding: '4px 0', minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+                <div style={{ fontSize: 26, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
+              </div>
+            ))}
           </div>
-          <div className="card">
-            <div className="card-header"><span className="card-title">Churn Risk Distribution</span></div>
-            <DonutSegments data={churnData} />
-            <div style={{ marginTop: 16 }}><BarChart data={churnData} /></div>
+
+          {/* Charts Row */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+            <div className="card" style={{ minWidth: 0 }}>
+              <div className="card-header"><span className="card-title">Resolution Distribution</span></div>
+              <DonutChart data={resolutionData} size={110} />
+            </div>
+            <div className="card" style={{ minWidth: 0 }}>
+              <div className="card-header"><span className="card-title">Churn Risk Distribution</span></div>
+              <DonutChart data={churnData} size={110} />
+            </div>
           </div>
-          <div className="card" style={{ gridColumn: '1 / -1' }}>
-            <div className="card-header"><span className="card-title">Top Call Reasons</span></div>
+
+          {/* Call Reasons */}
+          <div className="card" style={{ minWidth: 0 }}>
+            <div className="card-header">
+              <span className="card-title">Top Call Reasons</span>
+              {reasonData.length > 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{reasonData.length} categories</span>}
+            </div>
             {reasonData.length > 0
               ? <BarChart data={reasonData} />
               : <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>No analysis data yet — conversations must be ended and analyzed first.</p>
@@ -412,7 +483,6 @@ export default function Dashboard({ onSelectConv }) {
                       onMouseLeave={e => e.currentTarget.style.background = ''}>
                       <td style={{ padding: '10px 12px' }}>
                         <code style={{ fontSize: 12, background: 'var(--bg-secondary)', padding: '2px 5px', borderRadius: 4 }}>{c.id.slice(0, 8)}</code>
-                        {c.synthetic_assignment && <span className="synthetic-label" style={{ marginLeft: 5 }}>synthetic</span>}
                       </td>
                       <td style={{ padding: '10px 12px' }}><StatusBadge status={c.status} /></td>
                       <td style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 12 }}>{c.started_at ? new Date(c.started_at).toLocaleString() : '—'}</td>

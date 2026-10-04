@@ -23,24 +23,31 @@ function QAItem({ item }) {
     not_applicable: <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>N/A</span>,
     needs_review: <AlertTriangle size={14} color="var(--amber)" />,
   };
+  // D9: only show verification badge for items that were actually verified (not N/A)
+  const isNA = item.result === 'not_applicable';
   return (
     <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 10, marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => setOpen(o => !o)}>
         {icons[item.result] || icons.needs_review}
         <span style={{ flex: 1, fontSize: 13 }}>{(item.display || item.item_id)?.replace(/_/g, ' ')}</span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{((item.confidence || 0) * 100).toFixed(0)}%</span>
-        {item.verification_result && (
+        {!isNA && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{((item.confidence || 0) * 100).toFixed(0)}%</span>}
+        {/* D9: only show verification badge for verified items, not N/A */}
+        {!isNA && item.verification_result && (
           <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3,
             background: item.verification_result === 'supported' ? 'var(--green-bg)' : item.verification_result === 'not_supported' ? 'var(--red-bg)' : 'var(--amber-bg)',
             color: item.verification_result === 'supported' ? 'var(--green)' : item.verification_result === 'not_supported' ? 'var(--red)' : 'var(--amber)',
           }}>verified: {item.verification_result}</span>
+        )}
+        {isNA && item.explanation && (
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            title={item.explanation}>not applicable</span>
         )}
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </div>
       {open && (
         <div style={{ marginTop: 8, paddingLeft: 24 }}>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>{item.explanation}</p>
-          {(item.quote || (item.evidence || []).map(e => e.quote).join(' ')) && (
+          {!isNA && (item.quote || (item.evidence || []).map(e => e.quote).join(' ')) && (
             <blockquote style={{ borderLeft: '2px solid var(--accent)', paddingLeft: 10, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
               "{item.quote || (item.evidence || []).map(e => e.quote).join(' | ')}"
             </blockquote>
@@ -67,6 +74,22 @@ function SentimentTimeline({ trajectory }) {
   );
 }
 
+// D6: Convert raw deadline tags/phrases to human-readable text
+function formatDeadline(raw) {
+  if (!raw) return null;
+  const lower = raw.toLowerCase().trim();
+  // Strip internal tag-like tokens
+  if (lower === 'eod' || lower === 'end of day') return 'End of day';
+  if (lower === 'immediate' || lower === 'asap') return 'Immediately';
+  if (lower === 'tomorrow') return 'Tomorrow';
+  if (lower === 'specific' || lower === 'explicit') return raw; // show original if just tag
+  // Remove tag prefixes like "[eod]", "[specific]" etc.
+  const cleaned = raw.replace(/^\[?(eod|specific|explicit|immediate|asap)\]?\s*/i, '').trim();
+  // If it looks like a time "6pm", "18:00" — keep as is
+  if (/^\d{1,2}(:\d{2})?\s*(am|pm)?$/i.test(cleaned)) return cleaned;
+  return cleaned || raw;
+}
+
 function CommitmentLedger({ commitments }) {
   if (!commitments || commitments.length === 0) return (
     <p style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No commitments recorded.</p>
@@ -84,7 +107,11 @@ function CommitmentLedger({ commitments }) {
             <div style={{ fontSize: 13, color: 'var(--text-primary)', marginBottom: 2 }}>{c.description}</div>
             <div style={{ display: 'flex', gap: 10, fontSize: 11, color: 'var(--text-muted)' }}>
               {c.owner && <span>Owner: {c.owner}</span>}
-              {c.deadline && <span style={{ color: 'var(--amber)' }}>Due: {c.deadline}</span>}
+              {c.deadline && (
+                <span style={{ color: 'var(--amber)' }} title={c.deadline}>
+                  Due: {formatDeadline(c.deadline)}
+                </span>
+              )}
               {c.created_at_turn_id && <span>Created at: {c.created_at_turn_id}</span>}
             </div>
             {(c.evidence_json || []).map((ev, ei) => ev.quote && (
@@ -115,7 +142,7 @@ export default function ConversationDetail({ convId }) {
 
   // Reviewer workflow
   const [reviews, setReviews] = useState([]);
-  const [reviewVerdict, setReviewVerdict] = useState('approved');
+  const [reviewVerdict, setReviewVerdict] = useState(''); // D12: no default; user must choose
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewMsg, setReviewMsg] = useState('');
@@ -228,12 +255,14 @@ export default function ConversationDetail({ convId }) {
   };
 
   const submitReview = async () => {
+    if (!reviewVerdict) { setReviewMsg('Error: Please select a verdict.'); return; }
     setReviewSubmitting(true);
     setReviewMsg('');
     try {
       await api.createReview(convId, reviewVerdict, reviewNotes);
       setReviewMsg('Review submitted.');
       setReviewNotes('');
+      setReviewVerdict('');
       const updated = await api.getReviews(convId);
       setReviews(updated);
     } catch (e) {
@@ -254,11 +283,18 @@ export default function ConversationDetail({ convId }) {
           <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
             Conversation <code style={{ fontSize: 14, background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>{conv.id.slice(0, 8)}</code>
           </h2>
-          <div style={{ display: 'flex', gap: 10, marginTop: 4, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 4, alignItems: 'center', flexWrap: 'wrap' }}>
             <span className={`badge ${conv.status === 'ended' ? 'badge-green' : conv.status === 'active' ? 'badge-amber' : conv.status === 'closed' ? 'badge-gray' : 'badge-blue'}`}>{conv.status}</span>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{conv.turn_count} turns</span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{conv.started_at ? new Date(conv.started_at).toLocaleString() : ''}</span>
-            {conv.synthetic_assignment && <span className="synthetic-label">Synthetic Assignment</span>}
+            {conv.started_at && (
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {new Date(conv.started_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                {', '}
+                {new Date(conv.started_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+            {conv.agent_id && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Agent: <strong>{conv.agent_id}</strong></span>}
+            {conv.team_id && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Team: <strong>{conv.team_id}</strong></span>}
           </div>
         </div>
         <button className="btn btn-ghost btn-sm" onClick={() => load(true)} disabled={refreshing}
@@ -296,17 +332,11 @@ export default function ConversationDetail({ convId }) {
         )}
       </div>
 
-      {/* Sub-tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border-subtle)' }}>
+      {/* Sub-tabs — uses design system .tabs / .tab-btn */}
+      <div className="tabs">
         {TABS.map(([id, label]) => (
-          <button key={id} onClick={() => setActiveTab(id)}
-            style={{
-              padding: '7px 14px', fontSize: 13, fontWeight: activeTab === id ? 700 : 400,
-              color: activeTab === id ? 'var(--accent)' : 'var(--text-muted)',
-              background: 'none', border: 'none',
-              borderBottom: activeTab === id ? '2px solid var(--accent)' : '2px solid transparent',
-              cursor: 'pointer', marginBottom: -1,
-            }}>
+          <button key={id} className={`tab-btn${activeTab === id ? ' active' : ''}`}
+            onClick={() => setActiveTab(id)}>
             {label}
           </button>
         ))}
@@ -314,27 +344,34 @@ export default function ConversationDetail({ convId }) {
 
       {/* ---- TRANSCRIPT TAB ---- */}
       {activeTab === 'transcript' && (
-        <div className="card" style={{ maxHeight: 620, overflowY: 'auto' }}>
+        <div className="card" style={{ maxHeight: 640, overflowY: 'auto', padding: '16px' }}>
+          <div className="card-header" style={{ marginBottom: 14 }}>
+            <span className="card-title">Transcript</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{(conv.turns || []).length} turns</span>
+          </div>
           <div className="transcript">
             {(conv.turns || []).map(t => (
               <div key={t.turn_id} id={`turn-${t.turn_id}`}
-                className={`turn turn-${t.speaker}`}
-                style={{ outline: highlightTurn === t.turn_id ? '2px solid var(--accent)' : 'none', borderRadius: 6, transition: 'outline 0.2s' }}>
+                className={`turn turn-${t.speaker}${highlightTurn === t.turn_id ? ' highlighted' : ''}`}
+                style={{ borderRadius: 8, padding: '4px 0', transition: 'all 0.25s' }}>
                 <div className="turn-avatar">
                   {t.speaker === 'agent' ? <Headphones size={12} /> : <User size={12} />}
                 </div>
                 <div className="turn-body">
                   <div className="turn-meta">
-                    <strong style={{ textTransform: 'capitalize' }}>{t.speaker}</strong>
-                    <span>{t.turn_id}</span>
-                    {t.timestamp && <span>{new Date(t.timestamp).toLocaleTimeString()}</span>}
+                    <strong style={{ textTransform: 'capitalize', color: t.speaker === 'agent' ? 'var(--accent-hover)' : 'var(--purple)', fontSize: 12 }}>{t.speaker}</strong>
+                    <code style={{ fontSize: 10, background: 'transparent', color: 'var(--text-muted)', padding: 0 }}>{t.turn_id}</code>
+                    {t.timestamp && <span style={{ fontSize: 10 }}>{new Date(t.timestamp).toLocaleTimeString()}</span>}
                   </div>
                   <div className="turn-text">{t.text_redacted}</div>
                 </div>
               </div>
             ))}
             {(conv.turns || []).length === 0 && (
-              <p style={{ color: 'var(--text-muted)', fontSize: 13, padding: 20, textAlign: 'center' }}>No turns yet.</p>
+              <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)' }}>
+                <Clock size={24} style={{ marginBottom: 8, opacity: 0.5 }} />
+                <p style={{ fontSize: 13 }}>No turns recorded yet.</p>
+              </div>
             )}
           </div>
         </div>
@@ -358,34 +395,54 @@ export default function ConversationDetail({ convId }) {
             <div className="card">
               <div className="card-header">
                 <span className="card-title">Analysis</span>
-                <span className={`badge ${displayAnalysis.provisional ? 'badge-amber' : 'badge-green'}`}>
-                  {displayAnalysis.provisional ? 'Provisional' : `v${displayAnalysis.version}`}
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <span className={`badge ${displayAnalysis.provisional ? 'badge-amber' : 'badge-green'}`}>
+                    {displayAnalysis.provisional ? 'Provisional' : `v${displayAnalysis.version}`}
+                  </span>
+                  {displayAnalysis.model && (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{displayAnalysis.model}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Summary text */}
+              <p style={{ fontSize: 13, lineHeight: 1.75, color: 'var(--text-secondary)', marginBottom: 14,
+                padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 8,
+                borderLeft: '3px solid var(--accent-border)' }}>
+                {displayAnalysis.summary}
+              </p>
+
+              {/* Call reasons */}
+              {(displayAnalysis.reasons || []).length > 0 && (
+                <div className="insight-row">
+                  <span className="insight-label">Call Reasons</span>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {(displayAnalysis.reasons || []).map(r => <span key={r} className="reason-chip">{r.replace(/_/g, ' ')}</span>)}
+                  </div>
+                </div>
+              )}
+
+              {/* Resolution / Churn / False Resolution */}
+              <div className="insight-row">
+                <span className="insight-label">Resolution</span>
+                <span className={`badge ${displayAnalysis.resolution === 'resolved' ? 'badge-green' : displayAnalysis.resolution === 'unresolved' ? 'badge-red' : 'badge-amber'}`}>
+                  {displayAnalysis.resolution?.replace(/_/g, ' ')}
                 </span>
               </div>
-              <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)', marginBottom: 12 }}>{displayAnalysis.summary}</p>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                {(displayAnalysis.reasons || []).map(r => <span key={r} className="badge badge-blue">{r.replace(/_/g, ' ')}</span>)}
-              </div>
-              <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 12 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>RESOLUTION</div>
-                  <span className={`badge ${displayAnalysis.resolution === 'resolved' ? 'badge-green' : displayAnalysis.resolution === 'unresolved' ? 'badge-red' : 'badge-amber'}`}>
-                    {displayAnalysis.resolution?.replace(/_/g, ' ')}
-                  </span>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>CHURN RISK</div>
+              {displayAnalysis.churn_risk && (
+                <div className="insight-row">
+                  <span className="insight-label">Churn Risk</span>
                   <span className={`badge ${displayAnalysis.churn_risk === 'high' ? 'badge-red' : displayAnalysis.churn_risk === 'medium' ? 'badge-amber' : 'badge-green'}`}>
                     {displayAnalysis.churn_risk} risk
                   </span>
                 </div>
-                {displayAnalysis.false_resolution && (
-                  <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>FALSE RESOLUTION</div>
-                    <span className="badge badge-red"><AlertTriangle size={10} /> Detected</span>
-                  </div>
-                )}
-              </div>
+              )}
+              {displayAnalysis.false_resolution && (
+                <div className="insight-row">
+                  <span className="insight-label">False Resolution</span>
+                  <span className="badge badge-red"><AlertTriangle size={10} /> Detected</span>
+                </div>
+              )}
               {(displayAnalysis.churn_signals || []).length > 0 && (
                 <div style={{ padding: '8px 12px', background: 'var(--red-bg)', borderRadius: 6 }}>
                   <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600, marginBottom: 4 }}>Churn Signals</div>
@@ -419,6 +476,28 @@ export default function ConversationDetail({ convId }) {
                 </div>
               </div>
             )}
+
+            {/* D10: Open commitments summary in analysis tab */}
+            {(() => {
+              const openComm = (displayAnalysis.commitments || []).filter(
+                c => !['completed', 'cancelled'].includes(c.status)
+              );
+              if (openComm.length === 0) return null;
+              return (
+                <div className="card">
+                  <div className="card-header">
+                    <span className="card-title">Open Commitments</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{openComm.length} open</span>
+                  </div>
+                  <CommitmentLedger commitments={openComm} />
+                  {(displayAnalysis.commitments || []).length > openComm.length && (
+                    <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      {(displayAnalysis.commitments || []).length - openComm.length} completed / cancelled — visible in the Commitments tab.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         ) : (
           <div className="card" style={{ textAlign: 'center', padding: 40 }}>
@@ -495,34 +574,52 @@ export default function ConversationDetail({ convId }) {
           <div className="card">
             <div className="card-header"><span className="card-title">Submit Review</span></div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
-              <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Verdict</label>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
+                Verdict <span style={{ color: 'var(--red)' }}>*</span>
+              </label>
               <select value={reviewVerdict} onChange={e => setReviewVerdict(e.target.value)}
-                style={{ fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '5px 10px', color: 'var(--text-primary)' }}>
+                style={{ fontSize: 13, background: 'var(--bg-secondary)', borderRadius: 4, padding: '5px 10px',
+                  border: `1px solid ${!reviewVerdict ? 'var(--amber)' : 'var(--border-subtle)'}`,
+                  color: reviewVerdict ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                <option value="" disabled>Select a verdict...</option>
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
                 <option value="needs_rework">Needs Rework</option>
               </select>
             </div>
             <textarea value={reviewNotes} onChange={e => setReviewNotes(e.target.value)}
-              placeholder="Notes (optional)…"
+              placeholder="Notes (optional)..."
               rows={3}
               style={{ width: '100%', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '8px 10px', color: 'var(--text-primary)', resize: 'vertical', boxSizing: 'border-box', marginBottom: 10 }} />
-            <button className="btn btn-primary btn-sm" onClick={submitReview} disabled={reviewSubmitting}>
-              {reviewSubmitting ? 'Submitting…' : 'Submit Review'}
+            <button className="btn btn-primary btn-sm" onClick={submitReview}
+              disabled={reviewSubmitting || !reviewVerdict}
+              title={!reviewVerdict ? 'Please select a verdict before submitting' : ''}>
+              {reviewSubmitting ? 'Submitting...' : 'Submit Review'}
             </button>
+            {!reviewVerdict && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--amber)' }}>A verdict is required.</span>}
             {reviewMsg && <span style={{ marginLeft: 12, fontSize: 12, color: reviewMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{reviewMsg}</span>}
           </div>
 
           {/* Review history */}
           <div className="card">
-            <div className="card-header"><span className="card-title">Review History</span><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{reviews.length} reviews</span></div>
+            <div className="card-header">
+              <span className="card-title">Review History</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{reviews.length} reviews</span>
+            </div>
             {reviews.length === 0 ? (
               <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>No reviews yet.</p>
             ) : reviews.map(r => (
               <div key={r.review_id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span className={`badge ${r.verdict === 'approved' ? 'badge-green' : r.verdict === 'rejected' ? 'badge-red' : 'badge-amber'}`}>{r.verdict}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(r.created_at).toLocaleString()}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                  <span className={`badge ${r.verdict === 'approved' ? 'badge-green' : r.verdict === 'rejected' ? 'badge-red' : 'badge-amber'}`}>
+                    {r.verdict.replace(/_/g, ' ')}
+                  </span>
+                  {r.reviewer_id && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Reviewer #{r.reviewer_id}</span>}
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {new Date(r.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {', '}
+                    {new Date(r.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
                 {r.notes && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>{r.notes}</p>}
               </div>
@@ -533,6 +630,7 @@ export default function ConversationDetail({ convId }) {
     </div>
   );
 }
+
 
 function ResolutionBadge({ r }) {
   const map = { resolved: 'badge-green', partially_resolved: 'badge-amber', unresolved: 'badge-red', pending: 'badge-amber', escalated: 'badge-purple', unknown: 'badge-gray' };

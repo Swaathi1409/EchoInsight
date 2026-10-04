@@ -134,6 +134,8 @@ class ConversationSummary(BaseModel):
     qa_score: float | None = None
     churn_risk: str | None = None
     false_resolution: bool | None = None
+    resolution: str | None = None
+    reasons: list[str] | None = None
 
 
 class ConversationDetail(ConversationSummary):

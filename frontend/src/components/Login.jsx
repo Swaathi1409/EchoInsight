@@ -1,12 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api, setToken } from '../api';
-import { Lock, User } from 'lucide-react';
+import { Lock, User, Activity, Loader2 } from 'lucide-react';
 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [backendReady, setBackendReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const checkHealth = async () => {
+      try {
+        await fetch(`${API}/openapi.json`, { method: 'HEAD' });
+        if (mounted) setBackendReady(true);
+      } catch (e) {
+        if (mounted) setTimeout(checkHealth, 2500);
+      }
+    };
+    checkHealth();
+    return () => { mounted = false; };
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -16,7 +32,7 @@ export default function Login({ onLogin }) {
       setToken(res.access_token);
       onLogin();
     } catch (err) {
-      setError(err.message || 'Login failed');
+      setError(err.message || 'Invalid credentials. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -24,30 +40,130 @@ export default function Login({ onLogin }) {
 
   return (
     <div className="login-wrap">
-      <form className="login-card" onSubmit={submit}>
-        <h1>EchoInsight</h1>
-        <p>Telecom Conversation Intelligence Platform</p>
-        {error && <div className="error-banner">{error}</div>}
-        <div className="field">
-          <label>Username</label>
-          <div style={{ position: 'relative' }}>
-            <User size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--text-muted)' }} />
-            <input className="input" style={{ paddingLeft: 30 }} value={username}
-              onChange={e => setUsername(e.target.value)} placeholder="admin" required />
+      {/* Background decorative blobs */}
+      <div style={{
+        position: 'fixed', inset: 0, overflow: 'hidden', zIndex: 0, pointerEvents: 'none',
+      }}>
+        <div style={{
+          position: 'absolute', top: '15%', left: '10%', width: 480, height: 480,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(59,130,246,0.10) 0%, transparent 70%)',
+          filter: 'blur(40px)',
+        }} />
+        <div style={{
+          position: 'absolute', bottom: '10%', right: '8%', width: 360, height: 360,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(167,139,250,0.08) 0%, transparent 70%)',
+          filter: 'blur(40px)',
+        }} />
+      </div>
+
+      <form className="login-card" onSubmit={submit} style={{ position: 'relative', zIndex: 1 }}>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 10,
+            background: 'linear-gradient(135deg, rgba(59,130,246,0.25) 0%, rgba(167,139,250,0.20) 100%)',
+            border: '1px solid rgba(59,130,246,0.30)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Activity size={18} color="var(--accent-hover)" />
+          </div>
+          <div>
+            <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.4px',
+              background: 'linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text', margin: 0 }}>
+              EchoInsight
+            </h1>
+            <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+              Telecom Conversation Intelligence
+            </p>
           </div>
         </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-heading)', margin: 0, letterSpacing: '-0.3px' }}>
+            Sign in to your account
+          </h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 5 }}>
+            Enter your credentials to continue
+          </p>
+        </div>
+
+        {error && (
+          <div className="error-banner" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+            <span style={{ fontSize: 15 }}>⚠</span>
+            {error}
+          </div>
+        )}
+
         <div className="field">
-          <label>Password</label>
+          <label htmlFor="login-username">Username</label>
           <div style={{ position: 'relative' }}>
-            <Lock size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--text-muted)' }} />
-            <input className="input" style={{ paddingLeft: 30 }} type="password" value={password}
-              onChange={e => setPassword(e.target.value)} placeholder="password" required />
+            <User size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <input
+              id="login-username"
+              className="input"
+              style={{ paddingLeft: 32, width: '100%' }}
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              placeholder="admin"
+              autoComplete="username"
+              autoFocus
+              required
+              disabled={!backendReady || loading}
+            />
           </div>
         </div>
-        <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
-          disabled={loading} type="submit">
-          {loading ? 'Signing in...' : 'Sign in'}
+
+        <div className="field">
+          <label htmlFor="login-password">Password</label>
+          <div style={{ position: 'relative' }}>
+            <Lock size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <input
+              id="login-password"
+              className="input"
+              style={{ paddingLeft: 32, width: '100%' }}
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="current-password"
+              required
+              disabled={!backendReady || loading}
+            />
+          </div>
+        </div>
+
+        <button
+          className="btn btn-primary btn-lg"
+          style={{ width: '100%', justifyContent: 'center', marginTop: 10 }}
+          disabled={!backendReady || loading}
+          type="submit"
+        >
+          {!backendReady ? (
+            <>
+              <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', marginRight: 8 }} />
+              Waking up backend...
+            </>
+          ) : loading ? (
+            <>
+              <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block', marginRight: 8 }} />
+              Signing in...
+            </>
+          ) : 'Sign In'}
         </button>
+
+        {!backendReady && (
+          <div style={{ marginTop: 14, textAlign: 'center', fontSize: 11, color: 'var(--amber)' }}>
+            Note: Free-tier deployments may take 1-2 minutes to wake up from sleep.
+          </div>
+        )}
+
+        <div style={{ marginTop: 20, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+          Secured · Role-based access control
+        </div>
       </form>
     </div>
   );

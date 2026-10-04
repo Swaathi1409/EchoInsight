@@ -176,6 +176,8 @@ async def list_conversations(
                 Analysis.conversation_id,
                 Analysis.churn_risk,
                 Analysis.false_resolution,
+                Analysis.resolution,
+                Analysis.reasons_json,
                 QAResult.score,
             )
             .join(QAResult, QAResult.analysis_id == Analysis.analysis_id, isouter=True)
@@ -198,11 +200,20 @@ async def list_conversations(
     for c in rows:
         tc = tc_map.get(c.id, 0)
         ar = an_map.get(c.id)
+        import json as _json
+        reasons_list = None
+        if ar and ar.reasons_json:
+            try:
+                reasons_list = _json.loads(ar.reasons_json) if isinstance(ar.reasons_json, str) else ar.reasons_json
+            except Exception:
+                reasons_list = None
         summaries.append(_conv_summary(
             c, tc,
             qa_score=ar.score if ar else None,
             churn_risk=ar.churn_risk if ar else None,
             false_resolution=ar.false_resolution if ar else None,
+            resolution=ar.resolution if ar else None,
+            reasons=reasons_list,
         ))
     return summaries
 
@@ -679,6 +690,8 @@ def _conv_summary(
     qa_score: float | None = None,
     churn_risk: str | None = None,
     false_resolution: bool | None = None,
+    resolution: str | None = None,
+    reasons: list | None = None,
 ) -> ConversationSummary:
     return ConversationSummary(
         id=conv.id, source_id=conv.source_id, agent_id=conv.agent_id,
@@ -692,6 +705,8 @@ def _conv_summary(
         qa_score=qa_score,
         churn_risk=churn_risk,
         false_resolution=false_resolution,
+        resolution=resolution,
+        reasons=reasons,
     )
 
 

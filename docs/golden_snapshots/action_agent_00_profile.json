@@ -1,0 +1,61 @@
+{
+  "enabled": true,
+  "profile": {
+    "agent_id": "agent_00",
+    "agent_display": "agent_00",
+    "team_id": "team_00",
+    "n_conversations": 15,
+    "as_of": "2026-10-03T09:57:27",
+    "rules_version": "agent_insights_example_v1",
+    "label": "example policy \u2014 owner review required before production use",
+    "disclaimer": "Agent metrics are derived from automated analysis of stored conversation data. They may contain errors. Use only as one input alongside direct observation and supervisor review. Do not use as the sole basis for any employment decision.",
+    "sufficient_data": true,
+    "metrics": {
+      "resolution_rate": 1.0,
+      "unresolved_rate": 0.0,
+      "escalated_rate": 0.0,
+      "false_resolution_rate": 0.0,
+      "churn_signal_rate": 0.0,
+      "positive_sentiment_rate": 0.133,
+      "negative_sentiment_rate": 0.0,
+      "avg_qa_score": 93.0,
+      "n_with_qa": 15,
+      "commitment_completion_rate": null,
+      "total_commitments": 0,
+      "completed_commitments": 0,
+      "sentiment_distribution": {
+        "positive": 2,
+        "neutral": 13
+      },
+      "n": 15
+    },
+    "bands": {
+      "resolution": "strong",
+      "qa": "strong"
+    },
+    "top_call_reasons": [
+      {
+        "reason": "network_coverage_or_dropped_calls",
+        "count": 13
+      },
+      {
+        "reason": "cancellation_or_churn_intent",
+        "count": 13
+      },
+      {
+        "reason": "billing_dispute",
+        "count": 2
+      }
+    ],
+    "strengths": [
+      "High resolution rate (100%, n=15) \u2014 issues resolved at first contact.",
+      "Strong QA score average (93/100, n=15)."
+    ],
+    "development_areas": [],
+    "caveats": [
+      "Profile based on 15 conversations in the dataset (as-of 2026-10-03).",
+      "QA scores are derived from automated phrase matching \u2014 not manual audits.",
+      "These metrics are correlational, not causal. Human review is required."
+    ]
+  }
+}

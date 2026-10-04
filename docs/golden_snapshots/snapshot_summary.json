@@ -1,0 +1,153 @@
+{
+  "health": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "analytics_overview": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "analytics_reasons": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "analytics_resolution": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "analytics_sentiment": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "analytics_qa": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "analytics_commitments": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "analytics_agents": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "analytics_teams": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "analytics_trust": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "analytics_insights": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "conversations_list": {
+    "status": "ok",
+    "latency_ms": 2098.1,
+    "keys": "list[15]",
+    "hash": "1affcc299511f94b"
+  },
+  "reviews_list": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "cases_list": {
+    "status": "ok",
+    "latency_ms": 2086.1,
+    "keys": "list[7]",
+    "hash": "eb0b3dc71aabe544"
+  },
+  "audit_list": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "action_overview": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "action_recurring_issues": {
+    "status": "error",
+    "latency_ms": 0,
+    "keys": [
+      "error"
+    ],
+    "hash": "53fc17db856bcb25"
+  },
+  "action_initiatives": {
+    "status": "ok",
+    "latency_ms": 2066.7,
+    "keys": [
+      "enabled",
+      "initiatives",
+      "count"
+    ],
+    "hash": "bd29ea4c78d58f6d"
+  },
+  "action_agent_00_profile": {
+    "status": "ok",
+    "latency_ms": 2102.1,
+    "keys": [
+      "enabled",
+      "profile"
+    ],
+    "hash": "bd2bd9c48c08cc9d"
+  }
+}

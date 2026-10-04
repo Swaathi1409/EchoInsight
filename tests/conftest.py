@@ -69,3 +69,32 @@ async def get_token(client: httpx.AsyncClient, username="admin", password="pass"
     r = await client.post("/api/v1/auth/login", json={"username": username, "password": password})
     assert r.status_code == 200, r.text
     return r.json()["access_token"]
+
+
+@pytest_asyncio.fixture
+async def action_enabled_client(monkeypatch, env, app_db):
+    """
+    HTTPX async client with action layer enabled.
+    Seeds admin user + act_settings via the app's own session.
+    """
+    monkeypatch.setenv("ACTION_LAYER_ENABLED", "true")
+
+    from backend.api.main import create_app
+    from backend.db import get_db_session as _get_session, create_all_tables as _create_tables
+    from backend.auth import hash_password as _hash
+
+    app = create_app()
+    # Ensure tables exist in this engine (create_app may have re-initialised the engine)
+    await _create_tables()
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+        async with _get_session() as session:
+            from backend.models import User as _User
+            from backend.action_layer.models import ActSettings as _ActSettings
+            session.add(_User(username="admin", password_hash=_hash("pass"),
+                              role="admin", is_active=True))
+            session.add(_ActSettings(enabled=True))
+            await session.flush()
+        yield c
+

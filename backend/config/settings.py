@@ -18,14 +18,22 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # LLM
-    groq_api_key: str = Field(description="Groq API key")
+    # LLM — Groq (existing)
+    groq_api_key: str = Field(default="", description="Groq API key")
     llm_primary_model: str = "qwen/qwen3.8-27b"
     llm_verifier_model: str = "openai/gpt-oss-20b"
     llm_daily_token_budget: int = 400_000
     llm_max_concurrency: int = 3
     llm_request_timeout: float = 60.0
     llm_max_retries: int = 3
+
+    # LLM — Google AI Studio (preferred when set)
+    gemini_api_key: str = Field(default="", description="Google AI Studio API key")
+    gemini_model: str = "gemini-3.8-flash"
+
+    # LLM — OpenRouter (highest priority when set)
+    openrouter_api_key: str = Field(default="", description="OpenRouter API key")
+    openrouter_model: str = "anthropic/claude-haiku-4.5"
 
     # Database
     database_url: str = "sqlite+aiosqlite:///./dev_local.db"
@@ -41,6 +49,7 @@ class Settings(BaseSettings):
 
     # Features
     embeddings_enabled: bool = False
+    action_layer_enabled: bool = False
 
     # CORS
     cors_allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]

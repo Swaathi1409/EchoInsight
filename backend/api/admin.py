@@ -24,7 +24,7 @@ from backend.api.deps import get_current_user
 from backend.api.audit import audit_log
 from backend.db import _db_session_dependency
 from backend.domain_model import UserRole
-from backend.models import AuditLog, QAResult, Analysis, Conversation, User
+from backend.models import AuditLog, QAResult, Analysis, Conversation, User, ReviewAnnotation
 
 logger = logging.getLogger(__name__)
 
@@ -102,8 +102,8 @@ async def list_audit_logs(
 # Reviewer workflow
 # ---------------------------------------------------------------------------
 
-# In-memory store (sufficient for MVP; production: add ReviewerNote table)
-_review_store: dict[str, list[dict]] = {}
+# NOTE: Reviews are persisted to the review_annotations table (D16 fix).
+# The old in-memory _review_store has been removed.
 
 
 class CreateReviewRequest(BaseModel):
@@ -133,7 +133,24 @@ async def list_reviews(
 ) -> list[ReviewResponse]:
     """List all reviewer annotations for a conversation."""
     _require_supervisor_or_above(user)
-    return _review_store.get(conv_id, [])
+    rows = (await session.execute(
+        select(ReviewAnnotation)
+        .where(ReviewAnnotation.conversation_id == conv_id)
+        .order_by(ReviewAnnotation.created_at.asc())
+    )).scalars().all()
+    import json as _json
+    return [
+        ReviewResponse(
+            review_id=r.review_id,
+            conversation_id=r.conversation_id,
+            reviewer_id=r.reviewer_id,
+            verdict=r.verdict,
+            notes=r.notes or "",
+            qa_override=_json.loads(r.qa_override_json) if r.qa_override_json else {},
+            created_at=r.created_at.isoformat() if r.created_at else "",
+        )
+        for r in rows
+    ]
 
 
 @router.post("/conversations/{conv_id}/reviews", response_model=ReviewResponse, status_code=201)
@@ -154,23 +171,34 @@ async def create_review(
     if body.verdict not in ("approved", "rejected", "needs_rework"):
         raise HTTPException(status_code=422, detail="verdict must be approved|rejected|needs_rework")
 
+    import json as _json
     review_id = str(uuid.uuid4())
-    entry = ReviewResponse(
+    now = datetime.now(timezone.utc)
+    annotation = ReviewAnnotation(
+        review_id=review_id,
+        conversation_id=conv_id,
+        reviewer_id=user.id,
+        verdict=body.verdict,
+        notes=body.notes,
+        qa_override_json=_json.dumps(body.qa_override) if body.qa_override else None,
+        created_at=now,
+    )
+    session.add(annotation)
+    await session.flush()
+
+    await audit_log(session, user_id=user.id, action="create_review",
+                    resource_type="conversation", resource_id=conv_id,
+                    details={"verdict": body.verdict, "review_id": review_id,
+                             "overrides": len(body.qa_override)})
+    return ReviewResponse(
         review_id=review_id,
         conversation_id=conv_id,
         reviewer_id=user.id,
         verdict=body.verdict,
         notes=body.notes,
         qa_override=body.qa_override,
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=now.isoformat(),
     )
-    _review_store.setdefault(conv_id, []).append(entry.model_dump())
-
-    await audit_log(session, user_id=user.id, action="create_review",
-                    resource_type="conversation", resource_id=conv_id,
-                    details={"verdict": body.verdict, "review_id": review_id,
-                             "overrides": len(body.qa_override)})
-    return entry
 
 
 # ---------------------------------------------------------------------------
@@ -234,151 +262,195 @@ async def annotate_qa_item(
 # Checklist admin CRUD with versioning
 # ---------------------------------------------------------------------------
 
-# In-memory versioned store (production: persist to DB or YAML files)
-import yaml
-from pathlib import Path
+from backend.models import QAChecklist, QAChecklistVersion, QAChecklistItem
 
-POLICY_DIR = Path(__file__).parent.parent / "config"
-
-_checklist_cache: dict[str, dict] = {}
-
-
-def _load_policy_file(version: str) -> dict | None:
-    """Load a policy YAML file by version slug."""
-    p = POLICY_DIR / f"policy_{version}.yaml"
-    if p.exists():
-        with p.open() as f:
-            return yaml.safe_load(f)
-    return None
-
-
-def _save_policy_file(version: str, data: dict) -> None:
-    p = POLICY_DIR / f"policy_{version}.yaml"
-    with p.open("w") as f:
-        yaml.dump(data, f, sort_keys=False, allow_unicode=True)
-
-
-class ChecklistItem(BaseModel):
-    item_id: str
-    description: str
+class ChecklistItemSchema(BaseModel):
+    item_key: str
+    display_name: str
+    description: str | None = None
     weight: float = 1.0
     critical: bool = False
-    applicable_when: str = "always"
+    required: bool = False
+    enabled: bool = True
+    display_order: int = 0
+    evaluation_type: str = "llm_contextual"
+    policy_reference: str | None = None
+    applicability_note: str | None = None
 
-
-class ChecklistVersion(BaseModel):
-    version: str
-    display_name: str
+class ChecklistVersionSchema(BaseModel):
+    version_number: int
+    status: str
     created_at: str
-    items: list[ChecklistItem]
-    active: bool = False
-
+    items: list[ChecklistItemSchema]
+    settings: dict
 
 class CreateChecklistRequest(BaseModel):
-    version: str = Field(..., description="Version slug, e.g. v2")
-    display_name: str
-    items: list[ChecklistItem]
-    active: bool = False
-
+    name: str
+    description: str | None = None
+    items: list[ChecklistItemSchema]
+    settings: dict | None = None
 
 class UpdateChecklistRequest(BaseModel):
-    display_name: str | None = None
-    items: list[ChecklistItem] | None = None
-    active: bool | None = None
+    status: str | None = None
+    # Add items to create a new version
+    items: list[ChecklistItemSchema] | None = None
+    settings: dict | None = None
 
 
 @router.get("/checklists", response_model=list[dict])
 async def list_checklists(
+    session: AsyncSession = Depends(_db_session_dependency),
     user: User = Depends(get_current_user),
 ) -> list[dict]:
     """List all available checklist policy versions."""
     _require_supervisor_or_above(user)
+    
+    # Get checklists with their active versions
+    q = select(QAChecklist, QAChecklistVersion).outerjoin(
+        QAChecklistVersion, 
+        (QAChecklist.id == QAChecklistVersion.checklist_id) & (QAChecklistVersion.status == "active")
+    )
+    rows = (await session.execute(q)).all()
+    
     result = []
-    for p in sorted(POLICY_DIR.glob("policy_*.yaml")):
-        ver = p.stem.replace("policy_", "")
-        data = _load_policy_file(ver) or {}
+    for checklist, active_ver in rows:
         result.append({
-            "version": ver,
-            "display_name": data.get("policy_name", ver),
-            "item_count": len(data.get("items", [])),
-            "created_at": data.get("created_at", ""),
-            "active": data.get("active", False),
+            "key": checklist.key,
+            "name": checklist.name,
+            "description": checklist.description,
+            "active_version": active_ver.version_number if active_ver else None,
+            "active_version_id": active_ver.id if active_ver else None,
+            "updated_at": active_ver.created_at.isoformat() if active_ver else None,
         })
     return result
 
 
-@router.get("/checklists/{version}", response_model=dict)
+@router.get("/checklists/{key}", response_model=dict)
 async def get_checklist(
-    version: str,
+    key: str,
+    session: AsyncSession = Depends(_db_session_dependency),
     user: User = Depends(get_current_user),
 ) -> dict:
-    """Get a specific checklist version."""
+    """Get a specific checklist and its active version."""
     _require_supervisor_or_above(user)
-    data = _load_policy_file(version)
-    if not data:
-        raise HTTPException(status_code=404, detail=f"Checklist version '{version}' not found")
-    return data
+    q = select(QAChecklist).where(QAChecklist.key == key)
+    checklist = (await session.execute(q)).scalar_one_or_none()
+    if not checklist:
+        raise HTTPException(status_code=404, detail=f"Checklist '{key}' not found")
+        
+    q_ver = select(QAChecklistVersion).where(
+        QAChecklistVersion.checklist_id == checklist.id,
+        QAChecklistVersion.status == "active"
+    ).order_by(QAChecklistVersion.version_number.desc()).limit(1)
+    ver = (await session.execute(q_ver)).scalar_one_or_none()
+    
+    items = []
+    if ver:
+        q_items = select(QAChecklistItem).where(QAChecklistItem.version_id == ver.id).order_by(QAChecklistItem.display_order)
+        db_items = (await session.execute(q_items)).scalars().all()
+        for i in db_items:
+            items.append({
+                "item_key": i.item_key,
+                "display_name": i.display_name,
+                "description": i.description,
+                "weight": i.weight,
+                "critical": i.critical,
+                "required": i.required,
+                "enabled": i.enabled,
+                "evaluation_type": i.evaluation_type,
+            })
+            
+    return {
+        "key": checklist.key,
+        "name": checklist.name,
+        "description": checklist.description,
+        "active_version": ver.version_number if ver else None,
+        "settings": ver.settings if ver else {},
+        "items": items
+    }
 
 
-@router.post("/checklists", response_model=dict, status_code=201)
-async def create_checklist(
+import json
+import hashlib
+
+def _compute_hash(data: dict) -> str:
+    return hashlib.sha256(json.dumps(data, sort_keys=True).encode('utf-8')).hexdigest()
+
+@router.post("/checklists/{key}/versions", response_model=dict, status_code=201)
+async def create_checklist_version(
+    key: str,
     body: CreateChecklistRequest,
     session: AsyncSession = Depends(_db_session_dependency),
     user: User = Depends(get_current_user),
 ) -> dict:
-    """Create a new checklist version."""
+    """Create a new version for a checklist."""
     _require_admin(user)
-
-    existing = _load_policy_file(body.version)
-    if existing:
-        raise HTTPException(status_code=409, detail=f"Version '{body.version}' already exists")
-
-    data = {
-        "policy_name": body.display_name,
-        "policy_version": body.version,
-        "active": body.active,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "created_by": user.username,
-        "items": [item.model_dump() for item in body.items],
-    }
-    _save_policy_file(body.version, data)
-    await audit_log(session, user_id=user.id, action="create_checklist",
-                    resource_type="checklist", resource_id=body.version,
-                    details={"item_count": len(body.items), "active": body.active})
-    return data
-
-
-@router.patch("/checklists/{version}", response_model=dict)
-async def update_checklist(
-    version: str,
-    body: UpdateChecklistRequest,
-    session: AsyncSession = Depends(_db_session_dependency),
-    user: User = Depends(get_current_user),
-) -> dict:
-    """
-    Update a checklist version. This creates a new snapshot with the changes
-    while preserving the original (append-only history via file versioning).
-    """
-    _require_admin(user)
-
-    data = _load_policy_file(version)
-    if not data:
-        raise HTTPException(status_code=404, detail=f"Checklist version '{version}' not found")
-
-    if body.display_name is not None:
-        data["policy_name"] = body.display_name
-    if body.items is not None:
-        data["items"] = [item.model_dump() for item in body.items]
-    if body.active is not None:
-        data["active"] = body.active
-    data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    data["updated_by"] = user.username
-
-    _save_policy_file(version, data)
-    await audit_log(session, user_id=user.id, action="update_checklist",
-                    resource_type="checklist", resource_id=version,
-                    details={"changes": list(body.model_dump(exclude_none=True).keys())})
-    return data
+    
+    q = select(QAChecklist).where(QAChecklist.key == key)
+    checklist = (await session.execute(q)).scalar_one_or_none()
+    
+    if not checklist:
+        # Create checklist if not exists
+        checklist = QAChecklist(
+            key=key,
+            name=body.name,
+            description=body.description or ""
+        )
+        session.add(checklist)
+        await session.flush()
+        
+    # Find latest version number
+    q_latest = select(func.max(QAChecklistVersion.version_number)).where(QAChecklistVersion.checklist_id == checklist.id)
+    latest_ver = (await session.execute(q_latest)).scalar() or 0
+    new_version_num = latest_ver + 1
+    
+    data_dict = body.model_dump()
+    content_hash = _compute_hash(data_dict)
+    
+    # Create version
+    new_ver = QAChecklistVersion(
+        checklist_id=checklist.id,
+        version_number=new_version_num,
+        status="active",
+        source="admin_ui",
+        created_by=user.username,
+        created_at=datetime.now(timezone.utc),
+        content_hash=content_hash,
+        settings=body.settings or {}
+    )
+    session.add(new_ver)
+    
+    # Deactivate older active versions
+    q_deactivate = update(QAChecklistVersion).where(
+        QAChecklistVersion.checklist_id == checklist.id,
+        QAChecklistVersion.id != new_ver.id,
+        QAChecklistVersion.status == "active"
+    ).values(status="archived")
+    await session.execute(q_deactivate)
+    await session.flush()
+    
+    for idx, item in enumerate(body.items):
+        db_item = QAChecklistItem(
+            version_id=new_ver.id,
+            item_key=item.item_key,
+            display_name=item.display_name,
+            description=item.description,
+            weight=item.weight,
+            required=item.required,
+            critical=item.critical,
+            enabled=item.enabled,
+            display_order=idx,
+            evaluation_type=item.evaluation_type,
+            policy_reference=item.policy_reference,
+            applicability_note=item.applicability_note
+        )
+        session.add(db_item)
+        
+    await audit_log(session, user_id=user.id, action="create_checklist_version",
+                    resource_type="checklist", resource_id=key,
+                    details={"version_number": new_version_num, "item_count": len(body.items)})
+                    
+    return {"key": key, "version_number": new_version_num}
 
 class PurgeResponse(BaseModel):
     purged_count: int

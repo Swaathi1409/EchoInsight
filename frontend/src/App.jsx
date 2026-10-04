@@ -5,7 +5,10 @@ import Dashboard from './components/Dashboard';
 import ConversationDetail from './components/ConversationDetail';
 import LiveDemo from './components/LiveDemo';
 import AdminPanel from './components/AdminPanel';
-import { LayoutDashboard, Mic2, LogOut, Activity, Shield } from 'lucide-react';
+import ActionLayerShell from './action_layer/ActionLayerShell';
+import './action_layer/action_layer.css';
+import AssistantPage from './components/AssistantPage';
+import { LayoutDashboard, Mic2, LogOut, Activity, Shield, Zap, MessageSquare } from 'lucide-react';
 
 function useRoute() {
   const [hash, setHash] = useState(window.location.hash || '#/');
@@ -28,28 +31,41 @@ export default function App() {
   const [authed, setAuthed] = useState(hasToken());
   const hash = useRoute();
 
+  useEffect(() => {
+    if (authed && !hasToken()) {
+      setAuthed(false);
+    }
+  }, [hash, authed]);
+
   if (!authed) return <Login onLogin={() => setAuthed(true)} />;
 
   const convMatch = hash.match(/^#\/conversation\/(.+)$/);
   const isDemo = hash === '#/demo';
   const isAdmin = hash === '#/admin';
-  const isOverview = !convMatch && !isDemo && !isAdmin;
+  const isAction    = hash === '#/action' || hash.startsWith('#/action/');
+  const isAssistant = hash === '#/assistant';
+  const isOverview  = !convMatch && !isDemo && !isAdmin && !isAction && !isAssistant;
 
   const role = authed ? (parseJwt(getToken()).role || 'agent') : 'agent';
   const isPrivileged = ['admin', 'supervisor'].includes(role);
+  const currentUser = { role };
 
   const navItems = [
-    { label: 'Overview', icon: LayoutDashboard, href: '#/', active: isOverview },
-    { label: 'Live Demo', icon: Mic2, href: '#/demo', active: isDemo },
+    { label: 'Overview',  icon: LayoutDashboard, href: '#/',          active: isOverview },
+    { label: 'Live Demo', icon: Mic2,            href: '#/demo',       active: isDemo },
+    { label: 'Action',    icon: Zap,             href: '#/action',     active: isAction },
+    { label: 'Assistant', icon: MessageSquare,   href: '#/assistant',  active: isAssistant },
     ...(isPrivileged ? [{ label: 'Admin', icon: Shield, href: '#/admin', active: isAdmin }] : []),
   ];
 
   const logout = () => { clearToken(); setAuthed(false); };
 
   let topbarTitle = 'Overview';
-  if (isDemo) topbarTitle = 'Live Demo';
-  if (isAdmin) topbarTitle = 'Admin Panel';
-  if (convMatch) topbarTitle = `Conversation ${convMatch[1].slice(0, 8)}…`;
+  if (isDemo)      topbarTitle = 'Live Demo';
+  if (isAdmin)     topbarTitle = 'Admin Panel';
+  if (isAction)    topbarTitle = 'Action Intelligence';
+  if (isAssistant) topbarTitle = 'Assistant';
+  if (convMatch)   topbarTitle = `Conversation ${convMatch[1].slice(0, 8)}…`;
 
   return (
     <div className="layout">
@@ -59,20 +75,24 @@ export default function App() {
           <p>Conversation Intelligence</p>
         </div>
         <nav className="sidebar-nav">
+          <div className="nav-section-label">Navigation</div>
           {navItems.map(n => (
             <a key={n.label} href={n.href} style={{ textDecoration: 'none' }}>
               <div className={`nav-item${n.active ? ' active' : ''}`}>
-                <n.icon size={16} /> {n.label}
+                <n.icon size={15} />
+                {n.label}
               </div>
             </a>
           ))}
         </nav>
         <div className="sidebar-footer">
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, padding: '0 12px' }}>
-            Signed in as <strong>{role}</strong>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, padding: '0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className={`badge ${role === 'admin' ? 'badge-purple' : role === 'supervisor' ? 'badge-blue' : 'badge-gray'}`} style={{ fontSize: 10 }}>
+              {role}
+            </span>
           </div>
-          <button className="nav-item" onClick={logout} style={{ color: 'var(--red)' }}>
-            <LogOut size={16} /> Sign Out
+          <button className="nav-item" onClick={logout} style={{ color: 'var(--red)', width: '100%' }}>
+            <LogOut size={15} /> Sign Out
           </button>
         </div>
       </aside>
@@ -91,6 +111,10 @@ export default function App() {
           ? <LiveDemo />
           : isAdmin
           ? <AdminPanel />
+          : isAction
+          ? <ActionLayerShell currentUser={currentUser} />
+          : isAssistant
+          ? <AssistantPage currentRoute={hash} />
           : <Dashboard onSelectConv={(id) => { window.location.hash = `#/conversation/${id}`; }} />
         }
       </main>
