@@ -63,16 +63,21 @@ class AnswerPayload:
 
 # ── Plan schema validation ────────────────────────────────────────────────────
 
-_PLAN_REQUIRED_KEYS = {"intent_family", "sub_questions", "entities", "assumptions",
-                       "needs_clarification", "out_of_scope"}
+_PLAN_REQUIRED_KEYS = {"intent_family", "sub_questions"}
 
 
 def _validate_plan(plan: dict, available_tool_names: list[str]) -> list[str]:
-    """Return list of validation errors. Empty = valid."""
+    """Return list of validation errors. Empty = valid. Also injects missing defaults."""
+    # Inject defaults for keys Gemini might omit if empty/false
+    plan.setdefault("entities", {})
+    plan.setdefault("assumptions", [])
+    plan.setdefault("needs_clarification", False)
+    plan.setdefault("out_of_scope", False)
+
     errors = []
     missing = _PLAN_REQUIRED_KEYS - set(plan.keys())
     if missing:
-        errors.append(f"Plan missing keys: {missing}")
+        errors.append(f"Plan missing required keys: {missing}")
     for sq in plan.get("sub_questions", []):
         for step in sq.get("steps", []):
             tool = step.get("tool")
@@ -290,7 +295,7 @@ class AssistantPipeline:
             ui_context=ui_context,
             data_clock=self._data_clock,
         )
-        plan_json_str = await self._llm.complete(plan_prompt, max_tokens=900, json_mode=True)
+        plan_json_str = await self._llm.complete(plan_prompt, max_tokens=1500, json_mode=True)
 
         try:
             plan = json.loads(plan_json_str)
@@ -298,7 +303,7 @@ class AssistantPipeline:
             # Repair attempt: ask model to fix
             repair_prompt = f"The following is invalid JSON. Fix it and return only valid JSON.\n\nError: {e}\n\nJSON:\n{plan_json_str}"
             try:
-                plan_json_str2 = await self._llm.complete(repair_prompt, max_tokens=900, json_mode=True)
+                plan_json_str2 = await self._llm.complete(repair_prompt, max_tokens=1500, json_mode=True)
                 plan = json.loads(plan_json_str2)
             except Exception:
                 return _build_fallback([], CheckOutcome(), self._data_clock, [], "Could not parse plan."), steps
@@ -438,7 +443,7 @@ class AssistantPipeline:
             checks=post_checks,
             data_clock=self._data_clock,
         )
-        compose_json_str = await self._llm.complete(compose_prompt, max_tokens=700, json_mode=True)
+        compose_json_str = await self._llm.complete(compose_prompt, max_tokens=1500, json_mode=True)
 
         try:
             composed = json.loads(compose_json_str)
@@ -474,7 +479,7 @@ class AssistantPipeline:
             )
             original_composed = composed  # save in case regen fails
             try:
-                compose_json_str2 = await self._llm.complete(regen_prompt, max_tokens=700, json_mode=True)
+                compose_json_str2 = await self._llm.complete(regen_prompt, max_tokens=1500, json_mode=True)
                 regen = json.loads(compose_json_str2)
                 # Only accept regen if it has a non-empty headline
                 if regen.get("headline"):
