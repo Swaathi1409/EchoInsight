@@ -110,22 +110,30 @@ function KPICard({ icon, label, value, sub, color, accentColor }) {
   const accent = accentColor || color || 'var(--accent)';
   return (
     <div className="card" style={{
-      display: 'flex', flexDirection: 'column', gap: 12, padding: '16px',
+      display: 'flex', flexDirection: 'column', padding: '16px 20px',
       position: 'relative', overflow: 'hidden',
       '--kpi-color': accent,
-      height: '100%', boxSizing: 'border-box'
+      height: '100%', boxSizing: 'border-box',
+      borderTop: `3px solid ${accent}`
     }}>
-      <div style={{
-        background: `${accent}18`, borderRadius: 8, padding: 8,
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start'
-      }}>
-        {icon}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {label}
+        </div>
+        <div style={{ color: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.8 }}>
+          {icon}
+        </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{label}</div>
-        <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-heading)', lineHeight: 1 }}>{value ?? '—'}</div>
-        {sub && <div style={{ marginTop: 'auto', paddingTop: 8, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3 }}>{sub}</div>}
+      
+      <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-heading)', lineHeight: 1, marginBottom: 8 }}>
+        {value ?? '—'}
       </div>
+      
+      {sub ? (
+        <div style={{ marginTop: 'auto', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3 }}>{sub}</div>
+      ) : (
+        <div style={{ marginTop: 'auto' }} />
+      )}
     </div>
   );
 }
