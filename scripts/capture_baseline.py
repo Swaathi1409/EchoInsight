@@ -11,7 +11,7 @@ OUTPUT_FILE = Path(".backup/golden_snapshots.json")
 from backend.auth import create_access_token
 
 async def capture_snapshots():
-    token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzkxMTM4ODkyLCJpYXQiOjE3OTExMzUyOTJ9.iVSHgXJbKLbAn953j91TBQQsEGTLq5-4aG3pNyBSVCQ"
+    token = create_access_token({"sub": "1", "role": "admin"})
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient(base_url=API_URL, timeout=30.0, headers=headers) as client:
         # Get 15 conversations
