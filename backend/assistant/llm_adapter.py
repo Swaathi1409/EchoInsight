@@ -70,13 +70,19 @@ class AssistantLLMAdapter:
         import asyncio, re as _re
         from openai import AsyncOpenAI
 
-        # Prefer Gemini (Google AI Studio) when key is configured — higher free limits
-        if s.gemini_api_key:
+        # Prefer OpenRouter when key is configured
+        if s.openrouter_api_key:
+            llm_client = AsyncOpenAI(
+                api_key=s.openrouter_api_key,
+                base_url="https://openrouter.ai/api/v1",
+            )
+            model_name = s.openrouter_model
+        elif s.gemini_api_key:
             llm_client = AsyncOpenAI(
                 api_key=s.gemini_api_key,
                 base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             )
-            model_name = s.gemini_model  # e.g. "gemini-2.0-flash"
+            model_name = s.gemini_model
         else:
             from backend.llm.client import get_client
             llm_client = get_client()

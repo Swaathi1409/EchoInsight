@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     gemini_api_key: str = Field(default="", description="Google AI Studio API key")
     gemini_model: str = "gemini-3.8-flash"
 
+    # LLM — OpenRouter (highest priority when set)
+    openrouter_api_key: str = Field(default="", description="OpenRouter API key")
+    openrouter_model: str = "anthropic/claude-3-haiku"
+
     # Database
     database_url: str = "sqlite+aiosqlite:///./dev_local.db"
 
