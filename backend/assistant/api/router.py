@@ -268,6 +268,37 @@ async def assistant_chat(
     # Action layer status
     al_enabled = await _check_action_layer_enabled(session)
 
+    # ── Zero-LLM shortcut: capability/help questions ─────────────────────────
+    _help_triggers = {
+        "what can you do", "what do you do", "help", "capabilities",
+        "what questions", "how do you work", "what are you", "who are you",
+        "what can i ask", "what topics",
+    }
+    q_lower = body.question.lower().strip().rstrip("?")
+    if any(t in q_lower for t in _help_triggers):
+        al_enabled_h = await _check_action_layer_enabled(session)
+        catalog = compact_catalog(role, al_enabled_h)
+        caps = ", ".join(g["name"] for g in _build_capability_groups(catalog))
+        shortcut_answer = {
+            "headline": "I answer questions about your conversation data using verified tool results.",
+            "details": [
+                f"I can help with: {caps}.",
+                "Every number comes from a live API call — I never invent figures.",
+                "I cannot predict, diagnose causes, or access financial/CSAT data.",
+                "Click 'Help' at the top of this page for the full capability guide.",
+            ],
+            "table": None, "evidence_line": "Source: built-in capability registry",
+            "caveats": [], "verification_label": "verified", "checks": [],
+            "followups": ["Give me an overview summary", "Which call reasons have the highest unresolved rate?"],
+            "page_links": [], "is_fallback": False, "is_out_of_scope": False,
+            "is_clarification": False, "data_clock": data_clock, "tools_used": [],
+        }
+        return JSONResponse({
+            "enabled": True, "session_id": session_id,
+            "message_id": str(uuid.uuid4()), "answer": shortcut_answer,
+            "latency_ms": 0, "steps": [],
+        })
+
     # Build pipeline
     from backend.assistant.llm_adapter import AssistantLLMAdapter
     from backend.assistant.pipeline import AssistantPipeline
@@ -289,13 +320,20 @@ async def assistant_chat(
             session_context=session_context,
             ui_context=body.ui_context,
         )
-    except LLMBudgetExhaustedError as e:
+    except LLMBudgetExhaustedError:
+        rate_answer = {
+            "headline": "Rate limit reached — please wait a few seconds and try again.",
+            "details": [], "table": None, "evidence_line": "",
+            "caveats": [], "verification_label": "could_not_verify", "checks": [],
+            "followups": [], "page_links": [], "is_fallback": True,
+            "is_out_of_scope": False, "is_clarification": False,
+            "data_clock": data_clock, "tools_used": [],
+        }
         return JSONResponse({
-            "enabled": True,
-            "error": "rate_limited",
-            "message": str(e),
-            "deterministic_mode": True,
-        }, status_code=429)
+            "enabled": True, "session_id": session_id,
+            "message_id": str(uuid.uuid4()), "answer": rate_answer,
+            "latency_ms": 0, "steps": [],
+        }, status_code=200)
     except Exception as e:
         return JSONResponse({
             "enabled": True,
