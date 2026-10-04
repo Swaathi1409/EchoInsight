@@ -295,7 +295,7 @@ class AssistantPipeline:
             ui_context=ui_context,
             data_clock=self._data_clock,
         )
-        plan_json_str = await self._llm.complete(plan_prompt, max_tokens=1500, json_mode=True)
+        plan_json_str = await self._llm.complete(plan_prompt, max_tokens=450, json_mode=True)
 
         try:
             plan = json.loads(plan_json_str)
@@ -303,7 +303,7 @@ class AssistantPipeline:
             # Repair attempt: ask model to fix
             repair_prompt = f"The following is invalid JSON. Fix it and return only valid JSON.\n\nError: {e}\n\nJSON:\n{plan_json_str}"
             try:
-                plan_json_str2 = await self._llm.complete(repair_prompt, max_tokens=1500, json_mode=True)
+                plan_json_str2 = await self._llm.complete(repair_prompt, max_tokens=450, json_mode=True)
                 plan = json.loads(plan_json_str2)
             except Exception:
                 return _build_fallback([], CheckOutcome(), self._data_clock, [], "Could not parse plan."), steps
@@ -443,7 +443,7 @@ class AssistantPipeline:
             checks=post_checks,
             data_clock=self._data_clock,
         )
-        compose_json_str = await self._llm.complete(compose_prompt, max_tokens=1500, json_mode=True)
+        compose_json_str = await self._llm.complete(compose_prompt, max_tokens=450, json_mode=True)
 
         try:
             composed = json.loads(compose_json_str)
@@ -479,7 +479,7 @@ class AssistantPipeline:
             )
             original_composed = composed  # save in case regen fails
             try:
-                compose_json_str2 = await self._llm.complete(regen_prompt, max_tokens=1500, json_mode=True)
+                compose_json_str2 = await self._llm.complete(regen_prompt, max_tokens=450, json_mode=True)
                 regen = json.loads(compose_json_str2)
                 # Only accept regen if it has a non-empty headline
                 if regen.get("headline"):

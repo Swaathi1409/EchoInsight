@@ -99,8 +99,8 @@ class AssistantLLMAdapter:
                 msg = str(e)
                 if "429" in msg or "rate_limit" in msg.lower() or "quota" in msg.lower():
                     m = _re.search(r"try again in (\d+\.?\d*)s", msg, _re.IGNORECASE)
-                    wait = float(m.group(1)) + 1.0 if m else (3.0 * (attempt + 1))
-                    await asyncio.sleep(min(wait, 15.0))
+                    wait = float(m.group(1)) + 1.0 if m else (5.0 * (attempt + 1))
+                    await asyncio.sleep(min(wait, 30.0))
                 else:
                     break
 
