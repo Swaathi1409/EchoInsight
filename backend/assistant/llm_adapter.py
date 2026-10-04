@@ -49,31 +49,54 @@ class AssistantLLMAdapter:
         user_id: int | None = None,
     ) -> str:
         """
-        Send a prompt and return the raw response string.
-        Uses the existing chat_json with a generic JSON schema.
+        Send a prompt and return raw JSON string.
+        Uses Groq with response_format=json_object (no strict schema)
+        to avoid the additionalProperties:false Groq restriction.
+        Budget-guarded via the existing budget module.
         """
         if user_id is not None:
             self._check_rate_limit(user_id)
 
-        from backend.llm.client import chat_json
-        from backend.llm.budget import BudgetExceededError
+        from backend.llm.budget import check_budget, check_and_record, BudgetExceededError
+        from backend.llm.client import get_client
+        from backend.config.settings import get_settings
 
+        s = get_settings()
         try:
-            result, _pt, _ct = await chat_json(
-                messages=[{"role": "user", "content": prompt}],
-                schema=_generic_schema(),
-                temperature=0.0,
-            )
+            check_budget(s.llm_daily_token_budget)
         except BudgetExceededError as e:
             raise LLMBudgetExhaustedError(str(e)) from e
 
+        client = get_client()
+        try:
+            resp = await client.chat.completions.create(
+                model=s.llm_primary_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                response_format={"type": "json_object"},
+                max_tokens=max_tokens,
+            )
+        except Exception as e:
+            raise LLMBudgetExhaustedError(f"LLM call failed: {e}") from e
+
+        usage = resp.usage
+        pt = usage.prompt_tokens if usage else 0
+        ct = usage.completion_tokens if usage else 0
+        try:
+            check_and_record(pt, ct, s.llm_daily_token_budget)
+        except BudgetExceededError:
+            pass
+
         import json
-        return json.dumps(result)
-
-
-def _generic_schema() -> dict[str, Any]:
-    """Permissive schema: accept any JSON object."""
-    return {"type": "object", "additionalProperties": True}
+        content = resp.choices[0].message.content or "{}"
+        # Ensure we always return a JSON object string
+        try:
+            parsed = json.loads(content)
+            if not isinstance(parsed, dict):
+                content = json.dumps({"result": parsed})
+        except json.JSONDecodeError:
+            pass
+        return content
 
 
 class MockLLMAdapter:

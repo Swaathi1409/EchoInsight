@@ -7,8 +7,8 @@ import LiveDemo from './components/LiveDemo';
 import AdminPanel from './components/AdminPanel';
 import ActionLayerShell from './action_layer/ActionLayerShell';
 import './action_layer/action_layer.css';
-import AssistantPanel from './components/AssistantPanel';
-import { LayoutDashboard, Mic2, LogOut, Activity, Shield, Zap } from 'lucide-react';
+import AssistantPage from './components/AssistantPage';
+import { LayoutDashboard, Mic2, LogOut, Activity, Shield, Zap, MessageSquare } from 'lucide-react';
 
 function useRoute() {
   const [hash, setHash] = useState(window.location.hash || '#/');
@@ -36,27 +36,30 @@ export default function App() {
   const convMatch = hash.match(/^#\/conversation\/(.+)$/);
   const isDemo = hash === '#/demo';
   const isAdmin = hash === '#/admin';
-  const isAction = hash === '#/action' || hash.startsWith('#/action/');
-  const isOverview = !convMatch && !isDemo && !isAdmin && !isAction;
+  const isAction    = hash === '#/action' || hash.startsWith('#/action/');
+  const isAssistant = hash === '#/assistant';
+  const isOverview  = !convMatch && !isDemo && !isAdmin && !isAction && !isAssistant;
 
   const role = authed ? (parseJwt(getToken()).role || 'agent') : 'agent';
   const isPrivileged = ['admin', 'supervisor'].includes(role);
   const currentUser = { role };
 
   const navItems = [
-    { label: 'Overview', icon: LayoutDashboard, href: '#/', active: isOverview },
-    { label: 'Live Demo', icon: Mic2, href: '#/demo', active: isDemo },
-    { label: 'Action', icon: Zap, href: '#/action', active: isAction },
+    { label: 'Overview',  icon: LayoutDashboard, href: '#/',          active: isOverview },
+    { label: 'Live Demo', icon: Mic2,            href: '#/demo',       active: isDemo },
+    { label: 'Action',    icon: Zap,             href: '#/action',     active: isAction },
+    { label: 'Assistant', icon: MessageSquare,   href: '#/assistant',  active: isAssistant },
     ...(isPrivileged ? [{ label: 'Admin', icon: Shield, href: '#/admin', active: isAdmin }] : []),
   ];
 
   const logout = () => { clearToken(); setAuthed(false); };
 
   let topbarTitle = 'Overview';
-  if (isDemo) topbarTitle = 'Live Demo';
-  if (isAdmin) topbarTitle = 'Admin Panel';
-  if (isAction) topbarTitle = 'Action Intelligence';
-  if (convMatch) topbarTitle = `Conversation ${convMatch[1].slice(0, 8)}…`;
+  if (isDemo)      topbarTitle = 'Live Demo';
+  if (isAdmin)     topbarTitle = 'Admin Panel';
+  if (isAction)    topbarTitle = 'Action Intelligence';
+  if (isAssistant) topbarTitle = 'Assistant';
+  if (convMatch)   topbarTitle = `Conversation ${convMatch[1].slice(0, 8)}…`;
 
   return (
     <div className="layout">
@@ -104,12 +107,11 @@ export default function App() {
           ? <AdminPanel />
           : isAction
           ? <ActionLayerShell currentUser={currentUser} />
+          : isAssistant
+          ? <AssistantPage currentRoute={hash} />
           : <Dashboard onSelectConv={(id) => { window.location.hash = `#/conversation/${id}`; }} />
         }
       </main>
-
-      {/* EchoInsight Assistant — floating panel, works on every page */}
-      <AssistantPanel currentRoute={hash} />
     </div>
   );
 }

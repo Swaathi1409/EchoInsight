@@ -95,10 +95,22 @@ _BANNED_PHRASES = [
 
 
 def _resolve_path(data: Any, path: str) -> str | None:
-    """Resolve a dot-separated JSON path into a string value."""
-    parts = path.split(".")
+    """Resolve a dot-separated (or bracket-indexed) JSON path into a string value.
+    Supports: 'count', '_data.0.id', '_data[0].id', '_data[0]["key"]' etc.
+    """
+    import re as _re
+    # Normalise bracket notation: _data[0] -> _data.0
+    path = _re.sub(r'\[(\d+)\]', r'.\1', path)
+    path = _re.sub(r'\["([^"]+)"\]', r'.\1', path)
+    path = _re.sub(r"\['([^']+)'\]", r'.\1', path)
+    # Remove leading dots from normalisation
+    path = path.lstrip('.')
+
+    parts = path.split('.')
     cur = data
     for part in parts:
+        if not part:
+            continue
         if isinstance(cur, dict):
             cur = cur.get(part)
         elif isinstance(cur, list) and part.isdigit():
@@ -115,9 +127,11 @@ def _substitute_placeholders(
     text: str,
     tool_results: dict[str, Any],   # call_id -> result
     calc_results: dict[str, Any],   # call_id -> calc result
+    data_clock: str = "",
 ) -> tuple[str, list[str]]:
     """
     Replace all {{v:...}}, {{calc:...}}, {{quote:...}} placeholders.
+    Also resolves the special key 'data_clock' as {{v:data_clock}}.
     Returns (substituted_text, list_of_unresolved_placeholders).
     """
     unresolved = []
@@ -127,6 +141,9 @@ def _substitute_placeholders(
         ref = m.group(2)
 
         if kind in ("v", "quote"):
+            # Special literal: data_clock
+            if ref == "data_clock":
+                return data_clock or "[unknown]"
             parts = ref.split(".", 1)
             if len(parts) != 2:
                 unresolved.append(m.group(0))
@@ -155,9 +172,13 @@ def _substitute_placeholders(
 
 
 def _check_stray_numerals(text: str) -> list[str]:
-    """Return list of literal numerals found outside placeholders (after substitution)."""
+    """Return list of literal numerals found outside placeholder tokens.
+    Strips all {{v:...}}/{{calc:...}}/{{quote:...}} tokens first so that
+    hex digits inside call IDs (e.g. tc_abc12345) are not falsely flagged.
+    """
+    clean = _PLACEHOLDER_RE.sub("PLACEHOLDER", text)
     found = []
-    for m in _STRAY_NUMERAL_RE.finditer(text):
+    for m in _STRAY_NUMERAL_RE.finditer(clean):
         val = m.group(0).replace(",", "")
         if val not in _ALLOWED_LITERAL_NUMERALS:
             found.append(m.group(0))
@@ -353,17 +374,31 @@ class AssistantPipeline:
                 params = step.get("params", {})
                 call_id = f"tc_{uuid.uuid4().hex[:8]}"
                 try:
-                    result, log_entry = execute_tool(
+                    result, log_entry = await execute_tool(
                         tool_name=tool_name,
                         params=params,
                         caller_token=caller_token,
                     )
                     tcr = ToolCallResult(call_id, tool_name, params, result, log_entry)
                     tool_call_results.append(tcr)
-                    tool_result_map[call_id] = result
+                    # Store WRAPPED result matching what compose prompt shows the model,
+                    # so {{v:call_id.count}} etc. resolve correctly.
+                    if isinstance(result, list):
+                        tool_result_map[call_id] = {
+                            "type": "list",
+                            "count": len(result),
+                            "sample_keys": list(result[0].keys()) if result else [],
+                            "_data": result[:8],
+                        }
+                    elif isinstance(result, dict):
+                        tool_result_map[call_id] = {"type": "dict", "_data": result}
+                    else:
+                        tool_result_map[call_id] = result
+
                 except ToolCallError as e:
                     tcr = ToolCallResult(call_id, tool_name, params, {}, {}, error=str(e))
                     tool_call_results.append(tcr)
+
 
         # ── Step 4: Post-execution checks C3-C10 ─────────────────────────────
         all_results_flat = []
@@ -416,34 +451,64 @@ class AssistantPipeline:
         details_raw = composed.get("details", [])
         full_text = headline_raw + " " + " ".join(details_raw)
 
-        # Substitute placeholders
-        substituted, unresolved = _substitute_placeholders(full_text, tool_result_map, {})
+        # Substitute placeholders (data_clock is a special built-in key)
+        substituted, unresolved = _substitute_placeholders(
+            full_text, tool_result_map, {}, data_clock=self._data_clock
+        )
 
         if unresolved:
-            # One regeneration attempt
+            # One regeneration attempt — ask the LLM to rewrite using real call IDs
             regen_prompt = (
                 f"The following placeholders could not be resolved: {unresolved}. "
                 f"Available call IDs: {list(tool_result_map.keys())}. "
-                "Rewrite the answer using only available call IDs. Return JSON only."
+                f"The data_clock value is '{self._data_clock}' — write it literally. "
+                "Rewrite the answer using only available call IDs or literal values for dates. "
+                "Return JSON only with keys: headline, details, table, caveat_keys, followups."
             )
+            original_composed = composed  # save in case regen fails
             try:
                 compose_json_str2 = await self._llm.complete(regen_prompt, max_tokens=1200, json_mode=True)
-                composed = json.loads(compose_json_str2)
-                headline_raw = composed.get("headline", "")
-                details_raw = composed.get("details", [])
-                full_text = headline_raw + " " + " ".join(details_raw)
-                substituted, unresolved = _substitute_placeholders(full_text, tool_result_map, {})
+                regen = json.loads(compose_json_str2)
+                # Only accept regen if it has a non-empty headline
+                if regen.get("headline"):
+                    composed = regen
+                    headline_raw = composed.get("headline", "")
+                    details_raw = composed.get("details", [])
+                    full_text = headline_raw + " " + " ".join(details_raw)
+                    substituted, unresolved = _substitute_placeholders(
+                        full_text, tool_result_map, {}, data_clock=self._data_clock
+                    )
             except Exception:
                 pass
 
+            # If still unresolved after regen, drop lines that contain [UNRESOLVED]
+            # rather than falling back completely — preserve the headline if it resolved
             if unresolved:
-                return _build_fallback(
-                    tool_call_results, post_checks, self._data_clock, plan_tools,
-                    f"Unresolved placeholders: {unresolved}"
-                ), steps
+                headline_sub, h_unres = _substitute_placeholders(
+                    headline_raw, tool_result_map, {}, data_clock=self._data_clock
+                )
+                if h_unres:
+                    # Headline itself can't be resolved — fall back
+                    return _build_fallback(
+                        tool_call_results, post_checks, self._data_clock, plan_tools,
+                        f"Unresolved placeholders in headline: {h_unres}"
+                    ), steps
+                # Headline is fine — just drop detail lines that can't resolve
+                details_raw = [
+                    d for d in details_raw
+                    if not _substitute_placeholders(d, tool_result_map, {}, data_clock=self._data_clock)[1]
+                ]
+                headline_raw_clean = headline_raw
+                full_text = headline_raw + " " + " ".join(details_raw)
+                substituted, unresolved = _substitute_placeholders(
+                    full_text, tool_result_map, {}, data_clock=self._data_clock
+                )
 
-        # Check for stray numerals
-        stray = _check_stray_numerals(substituted)
+        # Check for stray numerals on the RAW compose output (before placeholder
+        # substitution). After substitution all numbers came from tool results
+        # via {{v:...}} so they are verified. Checking substituted text would
+        # incorrectly reject legitimate numbers derived from tool calls.
+        stray = _check_stray_numerals(full_text)
         if stray:
             return _build_fallback(
                 tool_call_results, post_checks, self._data_clock, plan_tools,
@@ -459,11 +524,14 @@ class AssistantPipeline:
             ), steps
 
         # Substitute in individual fields for final render
-        headline, _ = _substitute_placeholders(headline_raw, tool_result_map, {})
+        headline, _ = _substitute_placeholders(
+            headline_raw, tool_result_map, {}, data_clock=self._data_clock
+        )
         details = []
         for d in details_raw:
-            subst, _ = _substitute_placeholders(d, tool_result_map, {})
-            details.append(subst)
+            subst, _ = _substitute_placeholders(d, tool_result_map, {}, data_clock=self._data_clock)
+            if "[UNRESOLVED]" not in subst:
+                details.append(subst)
 
         # Build page links from tools used
         page_links = []
