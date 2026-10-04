@@ -477,54 +477,10 @@ class AssistantPipeline:
         )
 
         if unresolved:
-            # One regeneration attempt — ask the LLM to rewrite using real call IDs
-            regen_prompt = (
-                f"The following placeholders could not be resolved: {unresolved}. "
-                f"Available call IDs: {list(tool_result_map.keys())}. "
-                f"The data_clock value is '{self._data_clock}' — write it literally. "
-                "Rewrite the answer using only available call IDs or literal values for dates. "
-                "Return JSON only with keys: headline, details, table, caveat_keys, followups."
-            )
-            original_composed = composed  # save in case regen fails
-            try:
-                compose_json_str2 = await self._llm.complete(regen_prompt, max_tokens=1500, json_mode=True)
-                regen = json.loads(compose_json_str2, strict=False)
-                # Only accept regen if it has a non-empty headline
-                if regen.get("headline"):
-                    composed = regen
-                    headline_raw = composed.get("headline", "")
-                    details_raw = composed.get("details", [])
-                    if isinstance(details_raw, str):
-                        details_raw = [details_raw] if details_raw else []
-                    full_text = headline_raw + " " + " ".join(details_raw)
-                    substituted, unresolved = _substitute_placeholders(
-                        full_text, tool_result_map, {}, data_clock=self._data_clock
-                    )
-            except Exception:
-                pass
-
-            # If still unresolved after regen, drop lines that contain [UNRESOLVED]
-            # rather than falling back completely — preserve the headline if it resolved
-            if unresolved:
-                headline_sub, h_unres = _substitute_placeholders(
-                    headline_raw, tool_result_map, {}, data_clock=self._data_clock
-                )
-                if h_unres:
-                    # Headline itself can't be resolved — fall back
-                    return _build_fallback(
-                        tool_call_results, post_checks, self._data_clock, plan_tools,
-                        f"Unresolved placeholders in headline: {h_unres}"
-                    ), steps
-                # Headline is fine — just drop detail lines that can't resolve
-                details_raw = [
-                    d for d in details_raw
-                    if not _substitute_placeholders(d, tool_result_map, {}, data_clock=self._data_clock)[1]
-                ]
-                headline_raw_clean = headline_raw
-                full_text = headline_raw + " " + " ".join(details_raw)
-                substituted, unresolved = _substitute_placeholders(
-                    full_text, tool_result_map, {}, data_clock=self._data_clock
-                )
+            return _build_fallback(
+                tool_call_results, post_checks, self._data_clock, plan_tools,
+                f"Unresolved placeholders: {unresolved}"
+            ), steps
 
         # Check for stray numerals in raw compose output.
         stray = _check_stray_numerals(full_text)
