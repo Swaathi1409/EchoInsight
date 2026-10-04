@@ -31,6 +31,12 @@ export default function App() {
   const [authed, setAuthed] = useState(hasToken());
   const hash = useRoute();
 
+  useEffect(() => {
+    if (authed && !hasToken()) {
+      setAuthed(false);
+    }
+  }, [hash, authed]);
+
   if (!authed) return <Login onLogin={() => setAuthed(true)} />;
 
   const convMatch = hash.match(/^#\/conversation\/(.+)$/);
