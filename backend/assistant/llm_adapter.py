@@ -124,12 +124,23 @@ class AssistantLLMAdapter:
         import json
         content = resp.choices[0].message.content or "{}"
         content = content.strip()
-        if content.startswith("```json"):
-            content = content[7:]
-        elif content.startswith("```"):
-            content = content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
+        
+        start_brace = content.find('{')
+        start_bracket = content.find('[')
+        
+        start = -1
+        if start_brace != -1 and start_bracket != -1:
+            start = min(start_brace, start_bracket)
+        else:
+            start = max(start_brace, start_bracket)
+            
+        if start != -1:
+            end_brace = content.rfind('}')
+            end_bracket = content.rfind(']')
+            end = max(end_brace, end_bracket)
+            if end != -1 and end >= start:
+                content = content[start:end+1]
+                
         content = content.strip()
 
         # Ensure we always return a JSON object string
