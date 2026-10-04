@@ -15,10 +15,10 @@ CRITICAL_ITEMS = {"identity_verification", "prohibited_promises", "disclosure"}
 
 
 def score(items: list[dict], db_items: list = None, settings: dict = None) -> dict:
-    \"\"\"
+    """
     Compute QA result from validated item list using dynamic settings.
     Each item: {item_id, result, explanation, turn_id, quote, confidence, human_review_required}
-    \"\"\"
+    """
     applicable, assessed, needs_review_count = 0, 0, 0
     applicable_weight = assessed_weight = 0.0
     passed_weight = 0.0
@@ -46,8 +46,8 @@ def score(items: list[dict], db_items: list = None, settings: dict = None) -> di
             weight = getattr(db_item, 'weight', 1.0) if not isinstance(db_item, dict) else db_item.get('weight', 1.0)
             is_critical = getattr(db_item, 'critical', False) if not isinstance(db_item, dict) else db_item.get('critical', False)
         else:
-            weight = 1.0
-            is_critical = False
+            weight = ITEM_WEIGHTS.get(item_id, 1.0)
+            is_critical = item_id in CRITICAL_ITEMS
 
         if result == "not_applicable":
             scored_items.append({**item, "weight": weight, "score_contribution": 0.0,
@@ -82,21 +82,23 @@ def score(items: list[dict], db_items: list = None, settings: dict = None) -> di
     crit_cap = scoring_settings.get("critical_violation_score_cap", DEFAULT_CRITICAL_VIOLATION_SCORE_CAP)
 
     if applicable == 0:
-        score_val, score_label = 0, "not_assessed"
+        score_val, score_label = None, "not_assessed"
     elif coverage < cov_threshold:
         raw = (passed_weight / assessed_weight * 100) if assessed_weight > 0 else 0.0
+        penalty = scoring_settings.get("needs_review_coverage_penalty", 0.0)
+        raw = max(0.0, raw - (raw * penalty))
         if critical_violation:
             raw = min(raw, crit_cap)
-        score_val, score_label = raw, scoring_settings.get("partial_score_label", "partial")
+        score_val, score_label = round(raw, 1), scoring_settings.get("partial_score_label", "partial")
     else:
         raw = (passed_weight / assessed_weight * 100) if assessed_weight > 0 else 0.0
         if critical_violation:
             raw = min(raw, crit_cap)
-        score_val, score_label = raw, "score"
+        score_val, score_label = round(raw, 1), "score"
 
     return {
         "qa_result_id": str(uuid.uuid4()),
-        "score": round(score_val, 1),
+        "score": score_val,
         "score_label": score_label,
         "coverage": round(coverage, 3),
         "items_applicable": applicable,

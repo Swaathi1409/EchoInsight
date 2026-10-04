@@ -165,7 +165,7 @@ async def main():
 
         print("\n[6/6] Creating support case linking billing + network conversations...")
         linked = [x for x in [c1_id, c2_id] if x]
-        case_id = await create_case(client, tok, "Customer Emma Wilson — Billing & Network Issues", linked)
+        case_id = await create_case(client, tok, "Account 5594 — Billing & Network Issues", linked)
         print(f"  case_id: {case_id}")
 
         print("\n=== SEED COMPLETE ===")
