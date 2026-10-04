@@ -320,9 +320,9 @@ async def assistant_chat(
             session_context=session_context,
             ui_context=body.ui_context,
         )
-    except LLMBudgetExhaustedError:
+    except LLMBudgetExhaustedError as e:
         rate_answer = {
-            "headline": "Rate limit reached — please wait a few seconds and try again.",
+            "headline": f"Assistant Error: {str(e)}",
             "details": [], "table": None, "evidence_line": "",
             "caveats": [], "verification_label": "could_not_verify", "checks": [],
             "followups": [], "page_links": [], "is_fallback": True,
