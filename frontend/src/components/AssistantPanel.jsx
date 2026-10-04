@@ -367,6 +367,7 @@ export default function AssistantPanel({ currentRoute = '' }) {
   const [sessionId, setSessionId] = useState(null);
   const [chips, setChips] = useState([]);
   const [helpData, setHelpData] = useState(null);
+  const [feedbackGiven, setFeedbackGiven] = useState(new Set());
 
   const inputRef = useRef(null);
   const bottomRef = useRef(null);
@@ -495,6 +496,7 @@ export default function AssistantPanel({ currentRoute = '' }) {
       method: 'POST',
       body: JSON.stringify({ message_id: messageId, rating }),
     }).catch(() => {});
+    setFeedbackGiven(prev => new Set(prev).add(messageId));
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -680,7 +682,7 @@ export default function AssistantPanel({ currentRoute = '' }) {
                           <AnswerMessage answer={msg.answer} isFallback={msg.answer.is_fallback} />
                         )}
                         {/* Feedback */}
-                        {msg.message_id && (
+                        {msg.message_id && !feedbackGiven.has(msg.message_id) && (
                           <div style={{ display: 'flex', gap: 6, marginTop: 6, justifyContent: 'flex-end' }}>
                             <button
                               onClick={() => sendFeedback(msg.message_id, 1)}
@@ -704,6 +706,11 @@ export default function AssistantPanel({ currentRoute = '' }) {
                             >
                               Not helpful
                             </button>
+                          </div>
+                        )}
+                        {msg.message_id && feedbackGiven.has(msg.message_id) && (
+                          <div style={{ marginTop: 6, textAlign: 'right', fontSize: 11, color: 'var(--text-muted)' }}>
+                            Feedback received. Thank you!
                           </div>
                         )}
                       </div>

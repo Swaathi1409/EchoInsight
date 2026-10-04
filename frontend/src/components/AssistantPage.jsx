@@ -223,6 +223,7 @@ export default function AssistantPage({ currentRoute = '' }) {
   const [chips, setChips]         = useState([]);
   const [helpData, setHelpData]   = useState(null);
   const [view, setView]           = useState('chat');
+  const [feedbackGiven, setFeedbackGiven] = useState(new Set());
 
   const inputRef  = useRef(null);
   const bottomRef = useRef(null);
@@ -287,8 +288,10 @@ export default function AssistantPage({ currentRoute = '' }) {
     apiCall(`/suggestions?route=${encodeURIComponent(currentRoute)}`).then(d => setChips(d.chips || [])).catch(() => {});
   };
 
-  const sendFeedback = (messageId, rating) =>
+  const sendFeedback = (messageId, rating) => {
     apiCall('/feedback', { method: 'POST', body: JSON.stringify({ message_id: messageId, rating }) }).catch(() => {});
+    setFeedbackGiven(prev => new Set(prev).add(messageId));
+  };
 
   const loadHelp = () => {
     setView('help');
@@ -415,7 +418,7 @@ export default function AssistantPage({ currentRoute = '' }) {
                   ) : (
                     <div>
                       <AnswerBubble answer={msg.answer} onSend={sendQuestion} />
-                      {msg.message_id && (
+                      {msg.message_id && !feedbackGiven.has(msg.message_id) && (
                         <div style={{ display: 'flex', gap: 6, marginTop: 6, paddingLeft: 2 }}>
                           <button onClick={() => sendFeedback(msg.message_id, 1)}
                             style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--text-muted)', transition: 'border-color .15s' }}>
@@ -425,6 +428,11 @@ export default function AssistantPage({ currentRoute = '' }) {
                             style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--text-muted)', transition: 'border-color .15s' }}>
                             Not helpful
                           </button>
+                        </div>
+                      )}
+                      {msg.message_id && feedbackGiven.has(msg.message_id) && (
+                        <div style={{ marginTop: 6, paddingLeft: 2, fontSize: 11, color: 'var(--text-muted)' }}>
+                          Feedback received. Thank you!
                         </div>
                       )}
                     </div>
