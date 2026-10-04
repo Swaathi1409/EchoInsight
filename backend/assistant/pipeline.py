@@ -129,9 +129,14 @@ def _resolve_path(data: Any, path: str) -> str | None:
 
         if isinstance(cur, dict):
             cur = cur.get(part)
-        elif isinstance(cur, list) and part.isdigit():
-            idx = int(part)
-            cur = cur[idx] if idx < len(cur) else None
+        elif isinstance(cur, list):
+            if part.isdigit():
+                idx = int(part)
+                cur = cur[idx] if idx < len(cur) else None
+            elif part in ("length", "count"):
+                cur = len(cur)
+            else:
+                return None
         else:
             return None
         if cur is None:
