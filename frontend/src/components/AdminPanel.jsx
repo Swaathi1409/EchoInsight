@@ -323,151 +323,6 @@ function AuditLogTable() {
 
 
 // ---------------------------------------------------------------------------
-// Checklist Manager
-// ---------------------------------------------------------------------------
-function ChecklistManager() {
-  const [checklists, setChecklists] = useState([]);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    api.getChecklists().then(data => { setChecklists(data); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
-  return (
-    <div className="card">
-      <div className="card-header">
-        <span className="card-title">QA Checklists</span>
-      </div>
-      {loading ? <div className="skeleton" style={{ height: 40 }} /> : (
-        checklists.length === 0 ? (
-          <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>No checklist versions found. Policy YAML files go in backend/config/policy_*.yaml.</p>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr>
-                {['Version', 'Name', 'Items', 'Active'].map(h => (
-                  <th key={h} style={{ padding: '8px 0', textAlign: 'left', color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {checklists.map(c => (
-                <tr key={c.version} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                  <td style={{ padding: '8px 0' }}><code style={{ fontSize: 12 }}>{c.version}</code></td>
-                  <td style={{ padding: '8px 0' }}>{c.display_name}</td>
-                  <td style={{ padding: '8px 0', color: 'var(--text-muted)' }}>{c.item_count}</td>
-                  <td style={{ padding: '8px 0' }}>
-                    {c.active ? <CheckCircle size={14} color="var(--green)" /> : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Cases Manager
-// ---------------------------------------------------------------------------
-function CasesManager() {
-  const [cases, setCases] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [expanded, setExpanded] = useState({});
-
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-  const load = useCallback(() => {
-    fetch(`${API_URL}/api/v1/cases`, {
-      headers: { Authorization: `Bearer ${getToken()}` }
-    }).then(r => r.json()).then(data => { setCases(Array.isArray(data) ? data : []); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [API_URL]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const createCase = async () => {
-    if (!newTitle.trim()) return;
-    try {
-      await fetch(`${API_URL}/api/v1/cases`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ title: newTitle.trim(), conversation_ids: [] }),
-      });
-      setNewTitle('');
-      setCreating(false);
-      load();
-    } catch {}
-  };
-
-  const STATUS_MAP = { open: 'badge-amber', closed: 'badge-green', escalated: 'badge-red' };
-
-  const toggleExpand = (caseId) => setExpanded(e => ({ ...e, [caseId]: !e[caseId] }));
-
-  return (
-    <div className="card">
-      <div className="card-header">
-        <span className="card-title">Support Cases</span>
-        <button className="btn btn-primary btn-sm" onClick={() => setCreating(c => !c)} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Plus size={12} /> New Case
-        </button>
-      </div>
-      {creating && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Case title..."
-            onKeyDown={e => e.key === 'Enter' && createCase()}
-            style={{ flex: 1, background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '6px 10px', color: 'var(--text-primary)', fontSize: 13 }} />
-          <button className="btn btn-primary btn-sm" onClick={createCase}>Create</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => setCreating(false)}>Cancel</button>
-        </div>
-      )}
-      {loading ? <div className="skeleton" style={{ height: 40 }} /> : (
-        cases.length === 0 ? <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>No cases yet.</p> : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {cases.map(c => (
-              <div key={c.case_id} style={{ borderBottom: '1px solid var(--border-subtle)', padding: '10px 0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => toggleExpand(c.case_id)}>
-                  <code style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.case_id.slice(0, 8)}</code>
-                  <span style={{ flex: 1, fontWeight: 500, fontSize: 13 }}>{c.title}</span>
-                  <span className={`badge ${STATUS_MAP[c.status] || 'badge-gray'}`}>{c.status}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.conversation_count} conv{c.conversation_count !== 1 ? 's' : ''}</span>
-                  {c.created_at && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(c.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{expanded[c.case_id] ? '▲' : '▼'}</span>
-                </div>
-                {/* D22: Expanded conversation links */}
-                {expanded[c.case_id] && (
-                  <div style={{ paddingTop: 8, paddingLeft: 16 }}>
-                    {c.notes && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>{c.notes}</p>}
-                    {(c.conversations || []).length === 0 ? (
-                      <p style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No conversations linked.</p>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Linked Conversations</div>
-                        {c.conversations.map(conv => (
-                          <a key={conv.conversation_id}
-                            href={`#/conversation/${conv.conversation_id}`}
-                            style={{ fontSize: 12, color: 'var(--accent)', fontFamily: 'monospace', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                            title={conv.conversation_id}>
-                            <Link size={11} /> {conv.conversation_id.slice(0, 8)}...
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )
-      )}
-    </div>
-  );
-}
-
-
-// ---------------------------------------------------------------------------
 // Main AdminPanel
 // ---------------------------------------------------------------------------
 export default function AdminPanel() {
@@ -477,8 +332,6 @@ export default function AdminPanel() {
   const tabs = [
     ['budget', 'Budget & Metrics'],
     ['audit', 'Audit Log'],
-    ['checklists', 'Checklists'],
-    ['cases', 'Cases'],
   ];
 
   if (!role || !['admin', 'supervisor'].includes(role)) {
@@ -489,7 +342,7 @@ export default function AdminPanel() {
     <div className="page">
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Admin Panel</h2>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' }}>System monitoring, audit trail, policy management.</p>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' }}>System monitoring and audit trail.</p>
       </div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border-subtle)' }}>
         {tabs.map(([id, label]) => (
@@ -507,8 +360,6 @@ export default function AdminPanel() {
       </div>
       {tab === 'budget' && <BudgetCard />}
       {tab === 'audit' && <AuditLogTable />}
-      {tab === 'checklists' && <ChecklistManager />}
-      {tab === 'cases' && <CasesManager />}
     </div>
   );
 }
