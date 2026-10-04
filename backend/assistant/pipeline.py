@@ -486,6 +486,8 @@ class AssistantPipeline:
                     composed = regen
                     headline_raw = composed.get("headline", "")
                     details_raw = composed.get("details", [])
+                    if isinstance(details_raw, str):
+                        details_raw = [details_raw] if details_raw else []
                     full_text = headline_raw + " " + " ".join(details_raw)
                     substituted, unresolved = _substitute_placeholders(
                         full_text, tool_result_map, {}, data_clock=self._data_clock
