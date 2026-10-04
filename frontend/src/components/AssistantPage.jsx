@@ -23,6 +23,7 @@ async function apiCall(path, options = {}) {
 
 // ── Verification badge ────────────────────────────────────────────────────────
 function VerificationBadge({ label }) {
+  if (!label) return null;
   const config = {
     verified:              { text: 'Verified',              color: '#4ade80', bg: 'rgba(74,222,128,.10)', border: 'rgba(74,222,128,.25)' },
     verified_with_caveats: { text: 'Verified with caveats', color: '#fbbf24', bg: 'rgba(251,191,36,.10)', border: 'rgba(251,191,36,.25)' },
