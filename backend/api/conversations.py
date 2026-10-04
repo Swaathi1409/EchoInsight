@@ -146,6 +146,7 @@ async def list_conversations(
     limit: int = 50,
     offset: int = 0,
     status: str | None = None,
+    exclude_test: bool = True,
 ) -> list[ConversationSummary]:
     from sqlalchemy import func
     filters = _scope_filter(user)
@@ -154,6 +155,14 @@ async def list_conversations(
         q = q.where(*filters)
     if status:
         q = q.where(Conversation.status == status)
+    if exclude_test:
+        q = q.where(
+            (Conversation.source_id == None) |
+            (~Conversation.source_id.startswith("e2e-")) &
+            (~Conversation.source_id.startswith("test-")) &
+            (~Conversation.source_id.startswith("debug-")) &
+            (~Conversation.source_id.startswith("fixture-"))
+        )
     rows = (await session.execute(q)).scalars().all()
 
     # Batch turn counts
@@ -182,8 +191,7 @@ async def list_conversations(
             )
             .join(QAResult, QAResult.analysis_id == Analysis.analysis_id, isouter=True)
             .where(
-                Analysis.conversation_id.in_(conv_ids),
-                Analysis.provisional == False,  # noqa: E712
+                Analysis.conversation_id.in_(conv_ids)
             )
             .order_by(Analysis.version.desc())
         )

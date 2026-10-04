@@ -19,12 +19,12 @@ def _compute_hash(data: dict) -> str:
 
 async def bootstrap_qa_checklists(session: AsyncSession) -> None:
     """Idempotently seed the QA checklists from YAML files."""
-    for p in sorted(POLICY_DIR.glob("policy_*.yaml")):
+    for p in sorted(POLICY_DIR.glob("checklist_*.yaml")):
         try:
             with open(p, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
             
-            version_str = p.stem.replace("policy_", "")
+            version_str = p.stem.replace("checklist_", "")
             
             # YAML format is a bit loose. Expected fields based on policy_example_v1.yaml:
             checklist_key = version_str.split("_v")[0] if "_v" in version_str else version_str
