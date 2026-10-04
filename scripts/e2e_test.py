@@ -253,4 +253,5 @@ async def main():
     print("=" * 60)
     sys.exit(0 if failed == 0 else 1)
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

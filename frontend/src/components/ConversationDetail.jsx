@@ -280,9 +280,6 @@ export default function ConversationDetail({ convId }) {
           <ArrowLeft size={14} /> Back
         </button>
         <div style={{ flex: 1 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
-            Conversation <code style={{ fontSize: 14, background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>{conv.id.slice(0, 8)}</code>
-          </h2>
           <div style={{ display: 'flex', gap: 10, marginTop: 4, alignItems: 'center', flexWrap: 'wrap' }}>
             <span className={`badge ${conv.status === 'ended' ? 'badge-green' : conv.status === 'active' ? 'badge-amber' : conv.status === 'closed' ? 'badge-gray' : 'badge-blue'}`}>{conv.status}</span>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{conv.turn_count} turns</span>
