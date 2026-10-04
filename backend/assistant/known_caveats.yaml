@@ -68,9 +68,9 @@ caveats:
     label: "Duration data unreliable"
     description: >
       Call duration fields are not reliably populated in this dataset.
-      Duration-based questions cannot be answered accurately.
-    blocking: true
-    families: [F2, F3]
+      Duration-based metrics should be interpreted with caution.
+    blocking: false
+    families: [F12]
 
   no_cost_data:
     label: "No cost or revenue data"

@@ -76,8 +76,8 @@ def test_caveats_load():
     assert "synthetic_agent_assignment" in caveats
     assert "heuristic_churn" in caveats
     assert "duration_unreliable" in caveats
-    # blocking caveat
-    assert caveats["duration_unreliable"]["blocking"] is True
+    # duration_unreliable is now non-blocking (data quality warning, not refusal)
+    assert caveats["duration_unreliable"]["blocking"] is False
 
 
 # ── Check C1-C10 tests ─────────────────────────────────────────────────────────
@@ -182,8 +182,8 @@ def test_c7_reconciliation_match_passes():
 
 def test_c10_blocking_caveat_blocks():
     from backend.assistant.checks import c10_known_caveats
-    # F2 includes duration_unreliable which is blocking
-    result = c10_known_caveats(["F2"])
+    # F13 includes no_cost_data which is blocking
+    result = c10_known_caveats(["F13"])
     assert result.outcome == "fail"
     assert result.blocking is True
 

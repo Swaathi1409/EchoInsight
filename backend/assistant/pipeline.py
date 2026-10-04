@@ -18,7 +18,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from backend.assistant.checks import CheckOutcome, run_all_checks
+from backend.assistant.checks import CheckOutcome, CheckResult, run_all_checks
 from backend.assistant.tool_executor import ToolCallError, execute_tool
 from backend.assistant.tool_registry import (
     compact_catalog,
@@ -504,16 +504,32 @@ class AssistantPipeline:
                     full_text, tool_result_map, {}, data_clock=self._data_clock
                 )
 
-        # Check for stray numerals on the RAW compose output (before placeholder
-        # substitution). After substitution all numbers came from tool results
-        # via {{v:...}} so they are verified. Checking substituted text would
-        # incorrectly reject legitimate numbers derived from tool calls.
+        # Check for stray numerals in raw compose output.
+        # If the numeral can be found in a tool result it is verified data —
+        # the model just wrote it directly instead of via a placeholder.
+        # Add a non-blocking caveat; only hard-block on truly unverifiable numerals.
         stray = _check_stray_numerals(full_text)
         if stray:
-            return _build_fallback(
-                tool_call_results, post_checks, self._data_clock, plan_tools,
-                f"Stray numerals in composed text: {stray}"
-            ), steps
+            all_values: set[str] = set()
+            for wrapped in tool_result_map.values():
+                if isinstance(wrapped, dict):
+                    for v in wrapped.values():
+                        all_values.add(str(v))
+                        if isinstance(v, list):
+                            for row in v:
+                                if isinstance(row, dict):
+                                    all_values.update(str(x) for x in row.values())
+            unverified = [s for s in stray if s.replace(",", "") not in all_values]
+            if unverified:
+                return _build_fallback(
+                    tool_call_results, post_checks, self._data_clock, plan_tools,
+                    f"Stray numerals in composed text: {unverified}"
+                ), steps
+            post_checks.results.append(CheckResult(
+                "C_stray", "Numeral sourcing", "warn",
+                f"Verified numbers written directly (not via placeholder): {stray}",
+                blocking=False,
+            ))
 
         # Check for banned phrases
         banned = _check_banned_phrases(substituted)
