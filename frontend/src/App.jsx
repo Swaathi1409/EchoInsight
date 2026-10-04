@@ -7,6 +7,7 @@ import LiveDemo from './components/LiveDemo';
 import AdminPanel from './components/AdminPanel';
 import ActionLayerShell from './action_layer/ActionLayerShell';
 import './action_layer/action_layer.css';
+import AssistantPanel from './components/AssistantPanel';
 import { LayoutDashboard, Mic2, LogOut, Activity, Shield, Zap } from 'lucide-react';
 
 function useRoute() {
@@ -106,6 +107,9 @@ export default function App() {
           : <Dashboard onSelectConv={(id) => { window.location.hash = `#/conversation/${id}`; }} />
         }
       </main>
+
+      {/* EchoInsight Assistant — floating panel, works on every page */}
+      <AssistantPanel currentRoute={hash} />
     </div>
   );
 }

@@ -509,13 +509,34 @@ def compute_intervention_type(
     reasons: list[str] = analysis.get("reasons", [])
     reasons_text = " ".join(reasons).lower()
 
-    # ── Firm exit intent (highest specificity) ────────────────────────────────
+    # Pre-compute phrase matches (used in multiple branches)
     firm_phrases = find_matching_phrases(customer_text, FIRM_EXIT_PHRASES)
     declined_phrases = find_matching_phrases(customer_text, DECLINED_OFFER_PHRASES)
+    price_phrases = find_matching_phrases(customer_text, PRICE_SENSITIVE_PHRASES)
+    anger_phrases = find_matching_phrases(customer_text, ANGER_PHRASES)
+
     cancel_comp = next(
         (c for c in risk_result.components if c.name == "cancellation_intent" and c.triggered),
         None,
     )
+    broken_comp = next(
+        (c for c in risk_result.components if c.name == "broken_earlier_promise" and c.triggered),
+        None,
+    )
+    repeat_comp = next(
+        (c for c in risk_result.components if c.name == "repeat_contact" and c.triggered),
+        None,
+    )
+    billing_reason = any(
+        any(bp in r.lower() for bp in BILLING_REASON_PHRASES)
+        for r in reasons
+    )
+
+    has_open = len(open_commitments) > 0
+    is_unresolved = resolution in ("unresolved", "pending", "partially_resolved")
+
+    # ── 1. Firm exit intent (highest specificity) ─────────────────────────────
+    # Strong phrasing + cancellation signal. Check first — even if unresolved.
     if cancel_comp and (firm_phrases or declined_phrases):
         matched = firm_phrases + declined_phrases
         evidence = [{"type": "phrase", "phrase": p} for p in matched]
@@ -525,11 +546,42 @@ def compute_intervention_type(
             evidence=evidence,
         )
 
-    # ── Fix-driven: root cause still open ─────────────────────────────────────
-    has_open = len(open_commitments) > 0
-    is_unresolved = resolution in ("unresolved", "pending", "partially_resolved")
+    # ── 2. Price-sensitive (check before fix-driven) ──────────────────────────
+    # Price language in customer text (billing_reason broadened: also check reasons text).
+    price_or_retention_context = (
+        billing_reason
+        or any(k in reasons_text for k in ("billing", "charge", "bill", "invoice", "cancel", "churn", "retention"))
+    )
+    if price_phrases and price_or_retention_context:
+        return InterventionResult(
+            intervention_type="price_sensitive",
+            matched_phrases=price_phrases,
+            evidence=[{"type": "phrase", "phrase": p} for p in price_phrases[:3]],
+        )
+
+    # ── 3. Relationship repair ────────────────────────────────────────────────
+    # Broken promise, OR anger phrases alone (trust issue, not just fix).
+    if broken_comp or anger_phrases or (repeat_comp and len(analysis.get("reasons", [])) > 0):
+        matched = anger_phrases
+        ev: list[dict[str, Any]] = []
+        if broken_comp:
+            ev.append(broken_comp.evidence_ref)
+        if anger_phrases:
+            ev += [{"type": "phrase", "phrase": p} for p in anger_phrases[:2]]
+        elif repeat_comp:
+            ev.append({"type": "risk_component", "name": "repeat_contact"})
+        return InterventionResult(
+            intervention_type="relationship_repair",
+            matched_phrases=matched,
+            evidence=ev,
+        )
+
+    # ── 4. Fix-driven: root cause still open ─────────────────────────────────
+    # Fallback for unresolved conversations not matching higher-specificity types.
     if is_unresolved or has_open:
-        reasons_ev = [{"type": "analysis_field", "field": "resolution", "value": resolution}]
+        reasons_ev: list[dict[str, Any]] = [
+            {"type": "analysis_field", "field": "resolution", "value": resolution}
+        ]
         if open_commitments:
             reasons_ev.append({
                 "type": "commitment",
@@ -542,43 +594,7 @@ def compute_intervention_type(
             evidence=reasons_ev,
         )
 
-    # ── Price-sensitive: billing reasons + price phrases ─────────────────────
-    billing_reason = any(
-        any(bp in r.lower() for bp in BILLING_REASON_PHRASES)
-        for r in reasons
-    )
-    price_phrases = find_matching_phrases(customer_text, PRICE_SENSITIVE_PHRASES)
-    if billing_reason and price_phrases:
-        return InterventionResult(
-            intervention_type="price_sensitive",
-            matched_phrases=price_phrases,
-            evidence=[{"type": "phrase", "phrase": p} for p in price_phrases[:3]],
-        )
-
-    # ── Relationship repair ───────────────────────────────────────────────────
-    broken_comp = next(
-        (c for c in risk_result.components if c.name == "broken_earlier_promise" and c.triggered),
-        None,
-    )
-    repeat_comp = next(
-        (c for c in risk_result.components if c.name == "repeat_contact" and c.triggered),
-        None,
-    )
-    anger_phrases = find_matching_phrases(customer_text, ANGER_PHRASES)
-    if broken_comp or (repeat_comp and anger_phrases):
-        matched = anger_phrases
-        ev = []
-        if broken_comp:
-            ev.append(broken_comp.evidence_ref)
-        if anger_phrases:
-            ev += [{"type": "phrase", "phrase": p} for p in anger_phrases[:2]]
-        return InterventionResult(
-            intervention_type="relationship_repair",
-            matched_phrases=matched,
-            evidence=ev,
-        )
-
-    # ── Monitor (low risk) ────────────────────────────────────────────────────
+    # ── 5. Monitor (low risk, no strong signals) ──────────────────────────────
     if risk_result.risk_band == "low":
         return InterventionResult(
             intervention_type="monitor",
@@ -586,12 +602,13 @@ def compute_intervention_type(
             evidence=[{"type": "risk_band", "value": risk_result.risk_band}],
         )
 
-    # ── Undetermined ──────────────────────────────────────────────────────────
+    # ── 6. Undetermined ───────────────────────────────────────────────────────
     return InterventionResult(
         intervention_type="undetermined",
         matched_phrases=[],
         evidence=[],
     )
+
 
 
 # ── What-if scenario ───────────────────────────────────────────────────────────

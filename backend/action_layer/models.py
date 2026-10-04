@@ -286,6 +286,12 @@ class ActInitiative(Base):
     # PLAN
     problem_statement: Mapped[str] = mapped_column(Text, default="")
     root_cause_hypothesis: Mapped[str] = mapped_column(Text, default="")
+    # Structured metric (replaces free-text target_metric/target_change)
+    metric_key: Mapped[str] = mapped_column(String(64), default="")
+    # e.g. "unresolved_rate" | "weekly_volume" | "escalation_rate" | "custom"
+    target_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # numeric target (e.g. 0.40 for 40%) — None until set
+    # Legacy free-text kept for backward compat
     target_metric: Mapped[str] = mapped_column(String(128), default="")
     target_change: Mapped[str] = mapped_column(String(128), default="")
     owner: Mapped[str] = mapped_column(String(128), default="")

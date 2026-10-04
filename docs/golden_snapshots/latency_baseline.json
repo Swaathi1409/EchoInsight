@@ -1,0 +1,25 @@
+{
+  "p50_ms": 0,
+  "p95_ms": 2102.1,
+  "per_endpoint": {
+    "health": 0,
+    "analytics_overview": 0,
+    "analytics_reasons": 0,
+    "analytics_resolution": 0,
+    "analytics_sentiment": 0,
+    "analytics_qa": 0,
+    "analytics_commitments": 0,
+    "analytics_agents": 0,
+    "analytics_teams": 0,
+    "analytics_trust": 0,
+    "analytics_insights": 0,
+    "conversations_list": 2098.1,
+    "reviews_list": 0,
+    "cases_list": 2086.1,
+    "audit_list": 0,
+    "action_overview": 0,
+    "action_recurring_issues": 0,
+    "action_initiatives": 2066.7,
+    "action_agent_00_profile": 2102.1
+  }
+}

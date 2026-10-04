@@ -21,6 +21,13 @@ export default function ActionLayerShell({ currentUser }) {
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState("");
   const [activeTab, setActiveTab] = useState("recovery");
+  const [autoCreate, setAutoCreate] = useState(false);
+
+  // Called from RecurringIssues when user clicks "Create PDCA Initiative"
+  const handleCreateInitiative = useCallback(() => {
+    setActiveTab("initiatives");
+    setAutoCreate(true);
+  }, []);
 
   const checkStatus = useCallback(async () => {
     try {
@@ -121,8 +128,8 @@ export default function ActionLayerShell({ currentUser }) {
 
       <div className="al-tab-content">
         {activeTab === "recovery" && <RecoveryDesk currentUser={currentUser} />}
-        {activeTab === "issues" && <RecurringIssues currentUser={currentUser} />}
-        {activeTab === "initiatives" && <Initiatives currentUser={currentUser} />}
+        {activeTab === "issues" && <RecurringIssues currentUser={currentUser} onCreateInitiative={handleCreateInitiative} />}
+        {activeTab === "initiatives" && <Initiatives currentUser={currentUser} autoCreate={autoCreate} onAutoCreateDone={() => setAutoCreate(false)} />}
         {activeTab === "agents" && <AgentInsights currentUser={currentUser} />}
       </div>
     </div>

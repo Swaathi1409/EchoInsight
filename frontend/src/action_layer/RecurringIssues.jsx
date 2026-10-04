@@ -7,7 +7,7 @@ import { actionApi } from "./api.js";
 const TREND_ICONS = { up: "↑", down: "↓", flat: "→", insufficient_data: "?" };
 const TREND_COLORS = { up: "#ef4444", down: "#22c55e", flat: "#94a3b8", insufficient_data: "#94a3b8" };
 
-export default function RecurringIssues({ currentUser }) {
+export default function RecurringIssues({ currentUser, onCreateInitiative }) {
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -140,16 +140,16 @@ export default function RecurringIssues({ currentUser }) {
                       )}
 
                       {/* Link to create initiative */}
-                      {currentUser?.role === "admin" || currentUser?.role === "supervisor" ? (
+                      {(currentUser?.role === "admin" || currentUser?.role === "supervisor") && onCreateInitiative && (
                         <div className="al-issue-actions">
-                          <a
+                          <button
                             className="al-btn-secondary"
-                            href={`#/action/initiatives?new=true&issue_id=${issue.id}&reason=${encodeURIComponent(issue.reason_label)}`}
+                            onClick={onCreateInitiative}
                           >
                             Create PDCA Initiative for this issue
-                          </a>
+                          </button>
                         </div>
-                      ) : null}
+                      )}
                     </>
                   )}
                 </div>

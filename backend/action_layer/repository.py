@@ -65,18 +65,7 @@ class CoreRepository:
         self, *, team_id: str | None = None, agent_id: str | None = None,
         limit: int = 500, offset: int = 0
     ) -> list[dict[str, Any]]:
-        """Return conversations that have at least one final analysis."""
-        q = (
-            select(Conversation, Analysis)
-            .join(Analysis, Analysis.conversation_id == Conversation.id)
-            .where(Analysis.provisional == False)
-            .order_by(Analysis.version.desc())  # pick latest version
-        )
-        if team_id:
-            q = q.where(Conversation.team_id == team_id)
-        if agent_id:
-            q = q.where(Conversation.agent_id == agent_id)
-
+        """Return conversations with latest final analysis + QA score (left-joined)."""
         # Subquery: latest analysis version per conversation
         latest_subq = (
             select(
@@ -88,11 +77,12 @@ class CoreRepository:
             .subquery()
         )
         q = (
-            select(Conversation, Analysis)
+            select(Conversation, Analysis, QAResult)
             .join(Analysis, Analysis.conversation_id == Conversation.id)
             .join(latest_subq,
                   (latest_subq.c.conversation_id == Analysis.conversation_id) &
                   (latest_subq.c.max_version == Analysis.version))
+            .outerjoin(QAResult, QAResult.conversation_id == Conversation.id)
             .where(Analysis.provisional == False)
         )
         if team_id:
@@ -105,6 +95,7 @@ class CoreRepository:
         return [
             {
                 **self._analysis_to_dict(r.Analysis),
+                "qa_score": r.QAResult.score if r.QAResult is not None else None,
                 "conversation": {
                     "id": r.Conversation.id,
                     "source_id": r.Conversation.source_id,

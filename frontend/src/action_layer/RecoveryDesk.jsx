@@ -68,6 +68,9 @@ export default function RecoveryDesk({ currentUser }) {
   const [transitionModal, setTransitionModal] = useState(null);
   const [transitionForm, setTransitionForm] = useState({ notes: "", outcome: "", dismissal_reason: "" });
   const [transitionError, setTransitionError] = useState("");
+  const [draftEditForm, setDraftEditForm] = useState({ status: "", owner: "", notes: "" });
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [draftSaveMsg, setDraftSaveMsg] = useState("");
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -103,12 +106,45 @@ export default function RecoveryDesk({ currentUser }) {
 
   const openDraft = async () => {
     setView("draft");
+    setDraftSaveMsg("");
+    setDraftEditForm({ status: selected?.status || "", owner: "", notes: "" });
     if (draft) return;
     try {
       const d = await actionApi.getDraft(selected.id);
       setDraft(d.draft);
     } catch (e) {
       setDraft({ error: e?.data?.detail || "No draft" });
+    }
+  };
+
+  const saveDraftEdit = async () => {
+    if (!selected) return;
+    setDraftSaving(true);
+    setDraftSaveMsg("");
+    try {
+      const toStatus = draftEditForm.status && draftEditForm.status !== selected.status
+        ? draftEditForm.status : null;
+      const noteText = [
+        draftEditForm.owner ? `Owner: ${draftEditForm.owner}` : "",
+        draftEditForm.notes || "",
+      ].filter(Boolean).join(" | ");
+      if (toStatus) {
+        await actionApi.transitionItem(selected.id, {
+          to_status: toStatus,
+          notes: noteText || null,
+          outcome: null,
+          dismissal_reason: null,
+        });
+        setSelected((s) => ({ ...s, status: toStatus }));
+        setDraftEditForm((f) => ({ ...f, status: toStatus }));
+        await loadItems();
+      }
+      setDraftSaveMsg(toStatus ? `Status updated to "${STATUS_LABELS[toStatus] || toStatus}"` : "Saved.");
+    } catch (e) {
+      const msg = e?.data?.detail;
+      setDraftSaveMsg(`Error: ${typeof msg === "string" ? msg : JSON.stringify(msg) || "Save failed"}`);
+    } finally {
+      setDraftSaving(false);
     }
   };
 
@@ -346,7 +382,57 @@ export default function RecoveryDesk({ currentUser }) {
       )}
 
       {view === "draft" && (
-        <DraftViewer draft={draft} />
+        <div className="al-draft-tab">
+          <DraftViewer draft={draft} />
+
+          {currentUser && (currentUser.role === "admin" || currentUser.role === "supervisor") && (
+            <div className="al-draft-edit">
+              <h4 className="al-draft-edit-title">Workflow Update</h4>
+              <div className="al-draft-edit-row">
+                <div className="al-form-group">
+                  <label>Owner / Assignee</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Jane Smith"
+                    value={draftEditForm.owner}
+                    onChange={(e) => setDraftEditForm((f) => ({ ...f, owner: e.target.value }))}
+                  />
+                </div>
+                <div className="al-form-group">
+                  <label>Status</label>
+                  <select
+                    value={draftEditForm.status}
+                    onChange={(e) => setDraftEditForm((f) => ({ ...f, status: e.target.value }))}
+                  >
+                    <option value="">— No change —</option>
+                    {(NEXT_TRANSITIONS[selected?.status] || []).map((s) => (
+                      <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="al-form-group">
+                <label>Notes</label>
+                <textarea
+                  rows={3}
+                  placeholder="Optional notes for audit log"
+                  value={draftEditForm.notes}
+                  onChange={(e) => setDraftEditForm((f) => ({ ...f, notes: e.target.value }))}
+                />
+              </div>
+              <div className="al-draft-edit-actions">
+                <button className="al-btn-primary" onClick={saveDraftEdit} disabled={draftSaving}>
+                  {draftSaving ? "Saving…" : "Save Changes"}
+                </button>
+                {draftSaveMsg && (
+                  <span className={`al-draft-save-msg${draftSaveMsg.startsWith("Error") ? " al-draft-save-msg--error" : ""}`}>
+                    {draftSaveMsg}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {view === "whatif" && (

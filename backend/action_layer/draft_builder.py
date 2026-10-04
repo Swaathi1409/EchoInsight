@@ -147,9 +147,9 @@ def build_template_draft(
             if violations:
                 gate_status = "prohibited_phrase_detected"
         except Exception:
-            gate_status = "gate_check_skipped"
+            gate_status = "check_unavailable"
     else:
-        gate_status = "gate_check_skipped"
+        gate_status = "check_unavailable"
 
     return {
         "content": content,

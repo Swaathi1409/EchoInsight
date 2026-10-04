@@ -1,0 +1,308 @@
+# backend/assistant/tools.yaml
+# Tool allowlist for the EchoInsight Assistant.
+# ONLY read-only, scope-aware operations.
+# Test: no write-capable route may appear here (CI enforced).
+#
+# Each tool:
+#   name: unique snake_case identifier
+#   label: human-readable name shown in evidence line
+#   description: for the planner model
+#   method: HTTP method (must be GET for all tools)
+#   path_template: URL template with {param} placeholders
+#   params: parameter schema
+#   required_role: "any" | "admin" | "supervisor_or_admin"
+#   requires_action_layer: false | true
+#   caveat_keys: list of keys from known_caveats.yaml
+#   reconciliation_partner: another tool measuring same quantity (optional)
+#   page_link_template: deep-link to the matching UI page
+#   families: question families this tool serves
+
+tools:
+
+  - name: list_conversations
+    label: "Conversation list"
+    description: >
+      List conversations with optional filters: agent_id, team_id, status,
+      limit (max 100), offset. Returns conversation summaries including status,
+      started_at, ended_at, agent_id, team_id.
+    method: GET
+    path_template: "/api/v1/conversations"
+    params:
+      agent_id: {type: string, optional: true}
+      team_id: {type: string, optional: true}
+      status: {type: string, enum: [active, ended], optional: true}
+      limit: {type: integer, min: 1, max: 100, default: 50}
+      offset: {type: integer, min: 0, default: 0}
+    required_role: any
+    requires_action_layer: false
+    caveat_keys: [synthetic_agent_assignment, small_n]
+    reconciliation_partner: null
+    page_link_template: "/#/conversations?agent_id={agent_id}&team_id={team_id}"
+    families: [F1, F2, F6]
+
+  - name: get_conversation_detail
+    label: "Conversation detail"
+    description: >
+      Full detail for one conversation by ID: turns (redacted), analysis (resolution,
+      churn_risk, sentiment_trajectory, false_resolution, reasons, summary),
+      QA result (score, items with evidence quotes), commitments, state timeline.
+    method: GET
+    path_template: "/api/v1/conversations/{conv_id}"
+    params:
+      conv_id: {type: string, required: true}
+    required_role: any
+    requires_action_layer: false
+    caveat_keys: [redacted_text, heuristic_churn, synthetic_agent_assignment]
+    reconciliation_partner: null
+    page_link_template: "/#/conversations/{conv_id}"
+    families: [F3, F4, F5]
+
+  - name: get_conversation_analysis
+    label: "Conversation analysis"
+    description: >
+      Latest final (non-provisional) analysis for a conversation:
+      resolution, churn_risk, false_resolution, sentiment_trajectory, reasons, summary.
+    method: GET
+    path_template: "/api/v1/conversations/{conv_id}/analysis"
+    params:
+      conv_id: {type: string, required: true}
+    required_role: any
+    requires_action_layer: false
+    caveat_keys: [heuristic_churn, provisional_vs_final]
+    reconciliation_partner: null
+    page_link_template: "/#/conversations/{conv_id}"
+    families: [F3, F4]
+
+  - name: list_open_commitments
+    label: "Open commitments"
+    description: >
+      List all open (non-completed, non-cancelled) commitments across conversations,
+      with deadline, deadline_flag, agent_id, conversation_id.
+    method: GET
+    path_template: "/api/v1/conversations/open-commitments"
+    params:
+      limit: {type: integer, min: 1, max: 200, default: 100}
+    required_role: any
+    requires_action_layer: false
+    caveat_keys: [synthetic_agent_assignment]
+    reconciliation_partner: null
+    page_link_template: "/#/commitments"
+    families: [F1, F5]
+
+  - name: list_false_resolutions
+    label: "False resolutions"
+    description: >
+      List conversations flagged as false resolutions (resolved by agent but
+      contradicted by later evidence or heuristics).
+    method: GET
+    path_template: "/api/v1/conversations/false-resolutions"
+    params:
+      limit: {type: integer, min: 1, max: 200, default: 100}
+    required_role: any
+    requires_action_layer: false
+    caveat_keys: [heuristic_churn, synthetic_agent_assignment]
+    reconciliation_partner: null
+    page_link_template: "/#/false-resolutions"
+    families: [F1, F5]
+
+  - name: list_cases
+    label: "Cases (repeat contact)"
+    description: >
+      List cases (groups of related conversations by the same customer topic).
+      Each case may contain multiple conversations.
+    method: GET
+    path_template: "/api/v1/cases"
+    params:
+      limit: {type: integer, min: 1, max: 100, default: 50}
+    required_role: any
+    requires_action_layer: false
+    caveat_keys: [synthetic_agent_assignment]
+    reconciliation_partner: null
+    page_link_template: "/#/cases"
+    families: [F5]
+
+  - name: get_case_detail
+    label: "Case detail"
+    description: Full detail for one case including linked conversation IDs.
+    method: GET
+    path_template: "/api/v1/cases/{case_id}"
+    params:
+      case_id: {type: string, required: true}
+    required_role: any
+    requires_action_layer: false
+    caveat_keys: []
+    reconciliation_partner: null
+    page_link_template: "/#/cases/{case_id}"
+    families: [F5]
+
+  - name: list_checklists
+    label: "QA checklists"
+    description: >
+      List all QA checklist versions with their item counts and weights.
+      Use to explain how QA scores are computed.
+    method: GET
+    path_template: "/api/v1/checklists"
+    params: {}
+    required_role: any
+    requires_action_layer: false
+    caveat_keys: []
+    reconciliation_partner: null
+    page_link_template: "/#/admin/checklists"
+    families: [F4, F10]
+
+  - name: get_checklist_version
+    label: "QA checklist version"
+    description: Full checklist definition for one version including items and weights.
+    method: GET
+    path_template: "/api/v1/checklists/{version}"
+    params:
+      version: {type: string, required: true}
+    required_role: any
+    requires_action_layer: false
+    caveat_keys: []
+    reconciliation_partner: null
+    page_link_template: "/#/admin/checklists/{version}"
+    families: [F4, F10]
+
+  - name: get_audit_log
+    label: "Audit log"
+    description: >
+      Recent audit log entries: action type, user, conversation_id, timestamp.
+      Admin role only.
+    method: GET
+    path_template: "/api/v1/audit-logs"
+    params:
+      limit: {type: integer, min: 1, max: 100, default: 50}
+    required_role: admin
+    requires_action_layer: false
+    caveat_keys: []
+    reconciliation_partner: null
+    page_link_template: "/#/admin/audit"
+    families: [F9]
+
+  - name: get_system_config
+    label: "System configuration"
+    description: >
+      System configuration including LLM settings, evidence gate, daily token budget.
+      Admin role only.
+    method: GET
+    path_template: "/api/v1/config"
+    params: {}
+    required_role: admin
+    requires_action_layer: false
+    caveat_keys: []
+    reconciliation_partner: null
+    page_link_template: "/#/admin"
+    families: [F9]
+
+  - name: get_budget_status
+    label: "Token budget status"
+    description: Today's token usage versus daily budget. Admin role only.
+    method: GET
+    path_template: "/budget-status"
+    params: {}
+    required_role: admin
+    requires_action_layer: false
+    caveat_keys: []
+    reconciliation_partner: null
+    page_link_template: "/#/admin"
+    families: [F9]
+
+  - name: get_health
+    label: "System health"
+    description: Application health check and readiness status.
+    method: GET
+    path_template: "/health"
+    params: {}
+    required_role: any
+    requires_action_layer: false
+    caveat_keys: []
+    reconciliation_partner: null
+    page_link_template: "/#/admin"
+    families: [F9]
+
+  # ── Action Layer tools (requires_action_layer: true) ────────────────────────
+
+  - name: list_act_items
+    label: "Recovery Desk items"
+    description: >
+      List Action Layer items (risk-scored intervention opportunities)
+      with priority, risk band, quadrant, intervention type.
+      Filters: status, priority, quadrant, agent_id (scope-limited).
+    method: GET
+    path_template: "/api/v1/action/items"
+    params:
+      status: {type: string, enum: [open, claimed, dismissed, resolved], optional: true}
+      priority: {type: string, enum: [P1, P2, P3], optional: true}
+      limit: {type: integer, min: 1, max: 100, default: 50}
+    required_role: any
+    requires_action_layer: true
+    caveat_keys: [synthetic_agent_assignment, heuristic_risk]
+    reconciliation_partner: null
+    page_link_template: "/#/action/recovery"
+    families: [F7]
+
+  - name: get_act_item_detail
+    label: "Recovery Desk item detail"
+    description: >
+      Full detail for one Action Layer item including Risk Index breakdown
+      and intervention evidence.
+    method: GET
+    path_template: "/api/v1/action/items/{item_id}"
+    params:
+      item_id: {type: string, required: true}
+    required_role: any
+    requires_action_layer: true
+    caveat_keys: [heuristic_risk]
+    reconciliation_partner: null
+    page_link_template: "/#/action/recovery/{item_id}"
+    families: [F7]
+
+  - name: list_recurring_issues
+    label: "Recurring issues"
+    description: >
+      List recurring issues detected by the derive pipeline:
+      reason_label, volume, unresolved_rate, trend_direction, severity.
+    method: GET
+    path_template: "/api/v1/action/issues"
+    params:
+      limit: {type: integer, min: 1, max: 100, default: 50}
+    required_role: any
+    requires_action_layer: true
+    caveat_keys: [synthetic_agent_assignment, small_n]
+    reconciliation_partner: null
+    page_link_template: "/#/action/recurring"
+    families: [F8]
+
+  - name: list_initiatives
+    label: "PDCA initiatives"
+    description: >
+      List PDCA improvement initiatives with stage (plan/do/check/act),
+      metric_key, target_value, owner.
+    method: GET
+    path_template: "/api/v1/action/initiatives"
+    params:
+      limit: {type: integer, min: 1, max: 100, default: 50}
+    required_role: any
+    requires_action_layer: true
+    caveat_keys: []
+    reconciliation_partner: null
+    page_link_template: "/#/action/initiatives"
+    families: [F8]
+
+  - name: get_agent_profile
+    label: "Agent insights profile"
+    description: >
+      Computed performance profile for one agent: resolution_rate, avg_qa_score,
+      false_resolution_rate, churn_signal_rate, commitment_completion_rate,
+      top call reasons. Requires min 2 analyzed conversations.
+    method: GET
+    path_template: "/api/v1/action/agents/{agent_id}/profile"
+    params:
+      agent_id: {type: string, required: true}
+    required_role: supervisor_or_admin
+    requires_action_layer: true
+    caveat_keys: [synthetic_agent_assignment, small_n, heuristic_churn, automated_analysis_only]
+    reconciliation_partner: null
+    page_link_template: "/#/action/agents"
+    families: [F6]

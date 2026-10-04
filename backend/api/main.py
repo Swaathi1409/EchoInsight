@@ -103,6 +103,7 @@ async def _auto_migrate(database_url: str) -> None:
     from backend.db import get_engine
     from backend.models import Base
     import backend.action_layer.models  # noqa: F401 — registers act_* tables into Base.metadata
+    import backend.assistant.models  # noqa: F401 — registers asst_* tables into Base.metadata
     from sqlalchemy import text, inspect
     engine = get_engine()
     async with engine.begin() as conn:
@@ -261,6 +262,10 @@ def create_app() -> FastAPI:
     # Action Intelligence Layer (additive, guarded by master switch)
     from backend.action_layer.api.router import router as action_router
     app.include_router(action_router, prefix="/api/v1")
+
+    # Assistant (additive, guarded by ASSISTANT_ENABLED + DB toggle)
+    from backend.assistant.api.router import router as assistant_router
+    app.include_router(assistant_router)
 
     return app
 

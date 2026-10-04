@@ -10,13 +10,19 @@ export default function DraftViewer({ draft }) {
   }
 
   const gateOk = draft.gate_status === "passed";
+  const gateLabel = {
+    passed:                    "Gate: Passed",
+    prohibited_phrase_detected:"Gate: Prohibited phrase detected",
+    check_unavailable:         "Gate: Check not available",
+    gate_check_skipped:        "Gate: Check not available",  // legacy
+  }[draft.gate_status] ?? `Gate: ${draft.gate_status}`;
 
   return (
     <div className="al-draft">
       <div className="al-draft-header">
         <h3>Follow-up Draft</h3>
         <div className={`al-gate-badge al-gate-badge--${gateOk ? "ok" : "warn"}`}>
-          {gateOk ? "Gate: Passed" : `Gate: ${draft.gate_status}`}
+          {gateLabel}
         </div>
       </div>
 

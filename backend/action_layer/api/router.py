@@ -73,6 +73,9 @@ class InitiativeCreate(BaseModel):
     title: str
     problem_statement: str = ""
     root_cause_hypothesis: str = ""
+    metric_key: str = ""          # e.g. "unresolved_rate" | "weekly_volume" | "escalation_rate"
+    target_value: float | None = None  # numeric target
+    # legacy free-text kept for backward compat
     target_metric: str = ""
     target_change: str = ""
     owner: str = ""
@@ -81,12 +84,21 @@ class InitiativeCreate(BaseModel):
 
 class InitiativeUpdate(BaseModel):
     stage: str | None = None
+    # PLAN updates
+    problem_statement: str | None = None
+    root_cause_hypothesis: str | None = None
+    metric_key: str | None = None
+    target_value: float | None = None
+    owner: str | None = None
+    due_date: str | None = None
+    # DO updates
     implementation_date: str | None = None
     implementation_description: str | None = None
     do_owner: str | None = None
     do_status: str | None = None
     customers_informed: bool | None = None
     customers_informed_notes: str | None = None
+    # ACT updates
     act_decision: str | None = None
     act_notes: str | None = None
     notes: str = ""
@@ -156,6 +168,8 @@ def _initiative_to_dict(ini: ActInitiative) -> dict[str, Any]:
         "demonstration": ini.demonstration,
         "problem_statement": ini.problem_statement,
         "root_cause_hypothesis": ini.root_cause_hypothesis,
+        "metric_key": ini.metric_key,
+        "target_value": ini.target_value,
         "target_metric": ini.target_metric,
         "target_change": ini.target_change,
         "owner": ini.owner,
@@ -619,6 +633,8 @@ async def create_initiative(
         demonstration=False,
         problem_statement=body.problem_statement,
         root_cause_hypothesis=body.root_cause_hypothesis,
+        metric_key=body.metric_key,
+        target_value=body.target_value,
         target_metric=body.target_metric,
         target_change=body.target_change,
         owner=body.owner,
@@ -664,14 +680,56 @@ async def update_initiative(
 
     old_stage = ini.stage
 
+    # ── Stage advance with validation gates ───────────────────────────────────
     if body.stage is not None:
         if body.stage not in VALID_STAGES:
             raise HTTPException(400, f"stage must be one of: {sorted(VALID_STAGES)}")
-        # Only allow forward + reopen to plan
         if (STAGE_ORDER.get(body.stage, -1) < STAGE_ORDER.get(old_stage, 0)
                 and body.stage != "plan"):
-            raise HTTPException(400, "Cannot move stage backwards (except to plan for reopen)")
+            raise HTTPException(400, "Cannot move stage backwards (except to plan for a new iteration)")
+
+        # Gate: Plan → Do requires metric_key + target_value
+        new_metric_key = body.metric_key if body.metric_key is not None else ini.metric_key
+        new_target_value = body.target_value if body.target_value is not None else ini.target_value
+        if body.stage == "do" and old_stage == "plan":
+            if not new_metric_key:
+                raise HTTPException(400, detail={
+                    "message": "Cannot advance to Do: metric key is required.",
+                    "field": "metric_key",
+                })
+            if new_target_value is None:
+                raise HTTPException(400, detail={
+                    "message": "Cannot advance to Do: numeric target value is required.",
+                    "field": "target_value",
+                })
+
+        # Gate: Do → Check requires implementation_description + implementation_date
+        new_impl_desc = body.implementation_description if body.implementation_description is not None else ini.implementation_description
+        new_impl_date = ini.implementation_date  # will be updated below if provided
+        if body.implementation_date:
+            try:
+                from datetime import datetime as _dt
+                new_impl_date = _dt.fromisoformat(body.implementation_date)
+            except ValueError:
+                pass
+        if body.stage == "check" and old_stage == "do":
+            if not new_impl_desc:
+                raise HTTPException(400, detail={
+                    "message": "Cannot advance to Check: implementation description is required.",
+                    "field": "implementation_description",
+                })
+            if not new_impl_date:
+                raise HTTPException(400, detail={
+                    "message": "Cannot advance to Check: implementation date is required.",
+                    "field": "implementation_date",
+                })
+
         ini.stage = body.stage
+
+    # ── Act: adjust decision creates a new iteration back to Plan ─────────────
+    creating_new_iteration = False
+    if body.act_decision == "adjust" and old_stage == "act":
+        creating_new_iteration = True
 
     if body.implementation_date is not None:
         from datetime import datetime
@@ -680,6 +738,25 @@ async def update_initiative(
         except ValueError:
             raise HTTPException(400, "Invalid implementation_date")
 
+    # PLAN field updates
+    if body.problem_statement is not None:
+        ini.problem_statement = body.problem_statement
+    if body.root_cause_hypothesis is not None:
+        ini.root_cause_hypothesis = body.root_cause_hypothesis
+    if body.metric_key is not None:
+        ini.metric_key = body.metric_key
+    if body.target_value is not None:
+        ini.target_value = body.target_value
+    if body.owner is not None:
+        ini.owner = body.owner
+    if body.due_date is not None:
+        from datetime import datetime as _dt2
+        try:
+            ini.due_date = _dt2.fromisoformat(body.due_date)
+        except ValueError:
+            raise HTTPException(400, "Invalid due_date")
+
+    # DO field updates
     if body.implementation_description is not None:
         ini.implementation_description = body.implementation_description
     if body.do_owner is not None:
@@ -690,6 +767,8 @@ async def update_initiative(
         ini.customers_informed = body.customers_informed
     if body.customers_informed_notes is not None:
         ini.customers_informed_notes = body.customers_informed_notes
+
+    # ACT field updates
     if body.act_decision is not None:
         if body.act_decision not in VALID_ACT_DECISIONS:
             raise HTTPException(400, f"act_decision must be one of: {sorted(VALID_ACT_DECISIONS)}")
@@ -697,8 +776,37 @@ async def update_initiative(
     if body.act_notes is not None:
         ini.act_notes = body.act_notes
 
-    # Record stage transition event
-    if body.stage and body.stage != old_stage:
+    # ── Adjust → new iteration: reset DO/CHECK/ACT fields, bump iteration ────
+    if creating_new_iteration:
+        ini.iteration += 1
+        ini.stage = "plan"
+        # Clear Do, Check, Act fields for fresh iteration
+        ini.implementation_date = None
+        ini.implementation_description = ""
+        ini.do_owner = ""
+        ini.do_status = ""
+        ini.customers_informed = None
+        ini.customers_informed_date = None
+        ini.customers_informed_notes = ""
+        ini.check_computed_at = None
+        ini.check_post_window_start = None
+        ini.check_post_window_end = None
+        ini.check_post_n = None
+        ini.check_sufficient_data = False
+        ini.check_results_json = {}
+        ini.act_decision = None
+        ini.act_notes = ""
+        # Keep baseline frozen — do NOT reset baseline_metrics_json
+        session.add(ActInitiativeEvent(
+            initiative_id=ini.id,
+            from_stage=old_stage,
+            to_stage="plan",
+            actor_user_id=current_user.id,
+            notes=f"Iteration {ini.iteration} started (adjust). {body.notes or ''}".strip(),
+        ))
+
+    # Record stage transition event (non-adjust)
+    if not creating_new_iteration and body.stage and body.stage != old_stage:
         session.add(ActInitiativeEvent(
             initiative_id=ini.id,
             from_stage=old_stage,

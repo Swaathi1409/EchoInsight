@@ -23,7 +23,7 @@ AGENT_INSIGHTS_DISCLAIMER = (
     "supervisor review. Do not use as the sole basis for any employment decision."
 )
 
-MIN_CONVERSATIONS_FOR_PROFILE = 5  # below this: insufficient_data
+MIN_CONVERSATIONS_FOR_PROFILE = 2  # minimum 2 for demo; raise to 10+ in production
 
 
 def compute_agent_profile(
