@@ -115,10 +115,10 @@ export const api = {
   // Admin: checklists
   getChecklists: () =>
     fetch(`${API}/api/v1/checklists`, { headers: headers() }).then(handle),
-  getChecklist: (version) =>
-    fetch(`${API}/api/v1/checklists/${version}`, { headers: headers() }).then(handle),
-  createChecklist: (body) =>
-    fetch(`${API}/api/v1/checklists`, { method: 'POST', headers: headers(), body: JSON.stringify(body) }).then(handle),
+  getChecklist: (key) =>
+    fetch(`${API}/api/v1/checklists/${key}`, { headers: headers() }).then(handle),
+  createChecklistVersion: (key, body) =>
+    fetch(`${API}/api/v1/checklists/${key}/versions`, { method: 'POST', headers: headers(), body: JSON.stringify(body) }).then(handle),
 
   // Budget status
   getBudgetStatus: () =>
