@@ -10,7 +10,7 @@
  * - Minimal: no emojis, plain professional English
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getToken } from '../api';
+import { getToken, clearToken } from '../api';
 
 const BASE = '/api/v1/assistant';
 
@@ -24,6 +24,11 @@ async function apiCall(path, options = {}) {
     },
     ...options,
   });
+  if (res.status === 401 || res.status === 403) {
+    clearToken();
+    window.location.hash = '#/login';
+    throw new Error('Unauthorized');
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
