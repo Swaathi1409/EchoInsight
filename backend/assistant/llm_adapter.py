@@ -68,13 +68,25 @@ class AssistantLLMAdapter:
             raise LLMBudgetExhaustedError(str(e)) from e
 
         import asyncio, re as _re
+        from openai import AsyncOpenAI
 
-        client = get_client()
+        # Prefer Gemini (Google AI Studio) when key is configured — higher free limits
+        if s.gemini_api_key:
+            llm_client = AsyncOpenAI(
+                api_key=s.gemini_api_key,
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            )
+            model_name = s.gemini_model  # e.g. "gemini-2.0-flash"
+        else:
+            from backend.llm.client import get_client
+            llm_client = get_client()
+            model_name = s.llm_primary_model
+
         last_exc: Exception | None = None
         for attempt in range(3):
             try:
-                resp = await client.chat.completions.create(
-                    model=s.llm_primary_model,
+                resp = await llm_client.chat.completions.create(
+                    model=model_name,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.0,
                     response_format={"type": "json_object"},
@@ -85,13 +97,12 @@ class AssistantLLMAdapter:
             except Exception as e:
                 last_exc = e
                 msg = str(e)
-                if "429" in msg or "rate_limit" in msg.lower():
-                    # Extract wait time from Groq error message ("try again in X.XXs")
+                if "429" in msg or "rate_limit" in msg.lower() or "quota" in msg.lower():
                     m = _re.search(r"try again in (\d+\.?\d*)s", msg, _re.IGNORECASE)
                     wait = float(m.group(1)) + 1.0 if m else (3.0 * (attempt + 1))
                     await asyncio.sleep(min(wait, 15.0))
                 else:
-                    break  # non-rate-limit error, don't retry
+                    break
 
         if last_exc is not None:
             raise LLMBudgetExhaustedError(f"LLM call failed: {last_exc}") from last_exc

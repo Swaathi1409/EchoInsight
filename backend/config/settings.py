@@ -18,14 +18,18 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # LLM
-    groq_api_key: str = Field(description="Groq API key")
+    # LLM — Groq (existing)
+    groq_api_key: str = Field(default="", description="Groq API key")
     llm_primary_model: str = "qwen/qwen3.8-27b"
     llm_verifier_model: str = "openai/gpt-oss-20b"
     llm_daily_token_budget: int = 400_000
     llm_max_concurrency: int = 3
     llm_request_timeout: float = 60.0
     llm_max_retries: int = 3
+
+    # LLM — Google AI Studio (preferred when set)
+    gemini_api_key: str = Field(default="", description="Google AI Studio API key")
+    gemini_model: str = "gemini-2.0-flash"
 
     # Database
     database_url: str = "sqlite+aiosqlite:///./dev_local.db"
