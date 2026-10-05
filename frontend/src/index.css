@@ -673,3 +673,74 @@ code, .mono {
 
 /* ── Tooltip ──────────────────────────────────────────────────────────────── */
 [title] { cursor: help; }
+
+/* ── Mobile & Tablet Responsiveness ────────────────────────────────────────── */
+.mobile-menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+.mobile-menu-btn:hover { background: rgba(255,255,255,0.1); }
+
+.sidebar-overlay { display: none; }
+
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: none;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+  }
+  .main { margin-left: 0; }
+  .topbar { padding: 0 16px; }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .mobile-menu-btn { display: flex !important; }
+  .page { padding: 16px; }
+  .kpi-grid { grid-template-columns: 1fr; }
+  
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 45;
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  .sidebar-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Make tables scrollable horizontally on mobile */
+  .table-wrap { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; }
+  
+  .login-card { width: 90%; max-width: 380px; padding: 30px 24px; }
+  
+  .tabs { gap: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tab-btn { padding: 10px 12px; font-size: 12px; }
+}
+
+.live-demo-grid { display: grid; grid-template-columns: 340px 1fr 300px; gap: 14px; }
+@media (max-width: 1100px) {
+  .live-demo-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  /* Smaller phones */
+  .topbar-title { font-size: 14px; }
+  .btn { padding: 6px 12px; font-size: 12px; }
+  .kpi-value { font-size: 24px; }
+}

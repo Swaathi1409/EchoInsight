@@ -31,10 +31,13 @@ export default function App() {
   const [authed, setAuthed] = useState(hasToken());
   const hash = useRoute();
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   useEffect(() => {
     if (authed && !hasToken()) {
       setAuthed(false);
     }
+    setMobileMenuOpen(false); // Close menu on route change
   }, [hash, authed]);
 
   if (!authed) return <Login onLogin={() => setAuthed(true)} />;
@@ -69,7 +72,13 @@ export default function App() {
 
   return (
     <div className="layout">
-      <aside className="sidebar">
+      {/* Mobile overlay */}
+      <div 
+        className={`sidebar-overlay ${mobileMenuOpen ? 'open' : ''}`}
+        onClick={() => setMobileMenuOpen(false)}
+      />
+
+      <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="sidebar-logo">
           <h1>EchoInsight</h1>
           <p>Conversation Intelligence</p>
@@ -99,7 +108,16 @@ export default function App() {
 
       <main className="main">
         <header className="topbar">
-          <span className="topbar-title">{topbarTitle}</span>
+          <div className="topbar-left" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(true)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+            <span className="topbar-title">{topbarTitle}</span>
+          </div>
           <div className="topbar-right">
             <StatusIndicator />
           </div>

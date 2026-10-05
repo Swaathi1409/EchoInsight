@@ -379,8 +379,8 @@ export default function Dashboard({ onSelectConv }) {
       {activeTab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Health Summary Bar */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12,
+          <div className="grid-3" style={{
+            gap: 12,
             padding: '16px 20px', background: 'var(--bg-card)', borderRadius: 'var(--radius)',
             border: '1px solid var(--border)',
           }}>
@@ -398,7 +398,7 @@ export default function Dashboard({ onSelectConv }) {
           </div>
 
           {/* Charts Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+          <div className="grid-2" style={{ gap: 14 }}>
             <div className="card" style={{ minWidth: 0 }}>
               <div className="card-header"><span className="card-title">Resolution Distribution</span></div>
               <DonutChart data={resolutionData} size={110} />

@@ -181,7 +181,7 @@ function AuditDetailModal({ log, onClose }) {
 
         <h3 style={{ margin: '0 0 20px 0', fontSize: 16, fontWeight: 700 }}>Audit Entry Details</h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+        <div className="grid-2" style={{ gap: '16px 24px' }}>
           {/* Left column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>

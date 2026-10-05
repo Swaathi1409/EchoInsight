@@ -433,7 +433,7 @@ export default function AssistantPage({ currentRoute = '' }) {
                     Ask me anything about your conversation analytics.
                     All answers are verified against your live data.
                   </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div className="grid-2" style={{ gap: 8 }}>
                     {chips.map((chip, i) => <SuggestionChip key={i} chip={chip} onSend={sendQuestion} />)}
                   </div>
                 </div>
