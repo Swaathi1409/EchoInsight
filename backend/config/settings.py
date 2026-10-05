@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     action_layer_enabled: bool = False
 
     # CORS
-    cors_allowed_origins: list[str] = ["http://localhost:3000", "http://localhost:5173","https://echoinsight-telecom-intelligence.vercel.app/"]
+    cors_allowed_origins: list[str] = ["http://localhost:3000", "http://localhost:5173", "https://echoinsight-telecom-intelligence.vercel.app"]
 
     # Observability
     enable_metrics: bool = True
