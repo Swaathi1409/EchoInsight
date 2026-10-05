@@ -24,6 +24,7 @@ python-multipart==0.0.12
 
 # LLM provider
 groq==1.7.0
+openai==1.50.0
 
 # HTTP utilities
 tenacity==9.0.0          # Retry with exponential backoff
