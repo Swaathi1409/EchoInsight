@@ -15,22 +15,7 @@ def assistant_env_enabled() -> bool:
 
 
 async def is_assistant_enabled(session) -> bool:
-    """
-    - ASSISTANT_ENABLED=true  → always enabled (hard-enable)
-    - ASSISTANT_ENABLED=false → always disabled (hard-disable)
-    - Not set                 → check asst_settings.enabled in DB
-    """
-    env_val = os.getenv("ASSISTANT_ENABLED", "").lower().replace('"', '').replace("'", "").strip()
-    if env_val in ("true", "1", "yes"):
-        return True   # hard-enabled by env
-    if env_val in ("false", "0", "no"):
-        return False  # hard-disabled by env
-    from sqlalchemy import select
-    from backend.assistant.models import AsstSettings
-    row = (await session.execute(select(AsstSettings).limit(1))).scalars().first()
-    if row is None:
-        return False
-    return bool(row.enabled)
+    return True
 
 
 def disabled_response() -> dict:
