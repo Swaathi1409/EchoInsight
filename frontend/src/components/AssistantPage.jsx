@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getToken, clearToken } from '../api';
 
-const BASE = '/api/v1/assistant';
+const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000') + '/api/v1/assistant';
 
 async function apiCall(path, options = {}) {
   const token = getToken();
