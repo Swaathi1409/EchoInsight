@@ -74,6 +74,7 @@ async def chat_json(
                 messages=modified_messages,  # type: ignore
                 temperature=temperature,
                 response_format={"type": "json_object"},
+                max_tokens=2000,
             )
             usage = resp.usage
             prompt_tokens = usage.prompt_tokens if usage else 0
@@ -85,6 +86,22 @@ async def chat_json(
             except BudgetExceededError:
                 logger.warning("Token budget exceeded after call.")
             
+            import re
+            
+            # Find the outermost JSON object or array
+            match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', content)
+            if match:
+                content = match.group(1)
+            else:
+                # Fallback to stripping markdown if braces aren't found for some reason
+                match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", content)
+                if match:
+                    content = match.group(1)
+            
+            content = content.strip()
+            if not content:
+                content = "{}"
+                
             return json.loads(content), prompt_tokens, completion_tokens
         except Exception as e:
             last_exc = e
