@@ -56,6 +56,14 @@ async def seed() -> None:
                 ))
                 logger.info("Created user: %s (%s)", username, role)
         await session.flush()
+        
+        # Seed assistant settings
+        from backend.assistant.models import AsstSettings
+        asst_row = (await session.execute(select(AsstSettings).limit(1))).scalars().first()
+        if asst_row is None:
+            session.add(AsstSettings(enabled=True))
+            logger.info("Created default asst_settings (enabled=True)")
+            await session.flush()
 
     logger.info("Seed complete. Teams=%d Agents=%d", NUM_TEAMS, NUM_AGENTS)
 

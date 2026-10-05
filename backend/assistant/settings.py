@@ -20,7 +20,7 @@ async def is_assistant_enabled(session) -> bool:
     - ASSISTANT_ENABLED=false → always disabled (hard-disable)
     - Not set                 → check asst_settings.enabled in DB
     """
-    env_val = os.getenv("ASSISTANT_ENABLED", "").lower()
+    env_val = os.getenv("ASSISTANT_ENABLED", "").lower().replace('"', '').replace("'", "").strip()
     if env_val in ("true", "1", "yes"):
         return True   # hard-enabled by env
     if env_val in ("false", "0", "no"):
