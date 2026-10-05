@@ -143,9 +143,10 @@ function AnswerMessage({ answer, isFallback }) {
       {/* Details */}
       {answer.details && answer.details.length > 0 && (
         <ul style={{ margin: '0 0 8px', paddingLeft: 18 }}>
-          {answer.details.map((d, i) => (
-            <li key={i} style={{ marginBottom: 3, color: 'var(--text)' }}>{d}</li>
-          ))}
+          {answer.details.map((d, i) => {
+            const text = typeof d === 'object' ? (d.label || d.text || d.value || '') : d;
+            return text ? <li key={i} style={{ marginBottom: 3, color: 'var(--text)' }}>{text}</li> : null;
+          })}
         </ul>
       )}
 
@@ -220,9 +221,10 @@ function AnswerMessage({ answer, isFallback }) {
       {/* Follow-up chips */}
       {answer.followups && answer.followups.length > 0 && (
         <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {answer.followups.map((f, i) => (
-            <FollowupChip key={i} text={f} />
-          ))}
+          {answer.followups.map((f, i) => {
+            const text = typeof f === 'object' ? (f.label || f.text || f.question || '') : f;
+            return text ? <FollowupChip key={i} text={text} /> : null;
+          })}
         </div>
       )}
     </div>
