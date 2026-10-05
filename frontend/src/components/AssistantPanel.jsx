@@ -29,7 +29,15 @@ async function apiCall(path, options = {}) {
     window.location.hash = '#/login';
     throw new Error('Unauthorized');
   }
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const errBody = await res.json();
+      if (errBody.message) msg = errBody.message;
+      if (errBody.traceback) console.error("Traceback:", errBody.traceback);
+    } catch (e) {}
+    throw new Error(msg);
+  }
   return res.json();
 }
 
