@@ -93,12 +93,15 @@ async def lifespan(app: FastAPI):
     if "postgresql" in settings.database_url or "postgres" in settings.database_url:
         try:
             import subprocess, sys, os
-            backend_dir = os.path.join(os.path.dirname(__file__), "..", "..")
             alembic_dir = os.path.join(os.path.dirname(__file__), "..")
+            env = os.environ.copy()
+            # Pass the already-converted asyncpg URL so alembic doesn't use psycopg2
+            env["DATABASE_URL"] = settings.database_url
             result = subprocess.run(
                 [sys.executable, "-m", "alembic", "upgrade", "head"],
                 cwd=alembic_dir,
                 capture_output=True, text=True, timeout=120,
+                env=env,
             )
             if result.returncode == 0:
                 logger.info("Alembic migrations applied", output=result.stdout.strip())
