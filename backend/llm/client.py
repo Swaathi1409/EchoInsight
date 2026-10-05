@@ -3,28 +3,36 @@ Groq LLM client with token budget enforcement and retry.
 """
 from __future__ import annotations
 import logging
+import json
+from openai import AsyncOpenAI
 from typing import Any
-import groq
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+import time
 from backend.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
-_client: groq.AsyncGroq | None = None
+_client: AsyncOpenAI | None = None
 
 
-def get_client() -> groq.AsyncGroq:
+def get_client() -> AsyncOpenAI:
     global _client
     if _client is None:
-        _client = groq.AsyncGroq(api_key=get_settings().groq_api_key)
+        s = get_settings()
+        if s.openrouter_api_key:
+            _client = AsyncOpenAI(
+                api_key=s.openrouter_api_key,
+                base_url="https://openrouter.ai/api/v1",
+            )
+        else:
+            # Fallback to groq using OpenAI compatible endpoint
+            _client = AsyncOpenAI(
+                api_key=s.groq_api_key,
+                base_url="https://api.groq.com/openai/v1",
+            )
     return _client
 
 
-@retry(
-    retry=retry_if_exception_type((groq.RateLimitError, groq.APIConnectionError)),
-    wait=wait_exponential(multiplier=1, min=2, max=30),
-    stop=stop_after_attempt(3),
-    reraise=True,
-)
+# Simple retry logic without tenacity to avoid dependency issues if needed, or keep tenacity.
+# We'll just write a simple retry loop since OpenAI exceptions differ from Groq exceptions.
 async def chat_json(
     messages: list[dict[str, str]],
     schema: dict[str, Any],
@@ -32,46 +40,56 @@ async def chat_json(
     temperature: float = 0.0,
 ) -> tuple[dict[str, Any], int, int]:
     """
-    Call Groq with json_schema response format.
+    Call LLM with JSON format.
     Returns (parsed_dict, prompt_tokens, completion_tokens).
-
-    Raises BudgetExceededError if the daily token budget is exhausted.
     """
-    import json
     from backend.llm.budget import check_budget, check_and_record, BudgetExceededError
 
     s = get_settings()
-    m = model or s.llm_primary_model
+    m = model
+    if not m:
+        m = s.openrouter_model if s.openrouter_api_key else s.llm_primary_model
+        
     client = get_client()
 
-    # Pre-flight budget check
     try:
         check_budget(s.llm_daily_token_budget)
     except BudgetExceededError as exc:
         logger.error("Token budget exhausted before LLM call: %s", exc)
         raise
 
-    resp = await client.chat.completions.create(
-        model=m,
-        messages=messages,  # type: ignore[arg-type]
-        temperature=temperature,
-        response_format={
-            "type": "json_schema",
-            "json_schema": {"name": "response", "schema": schema, "strict": True},
-        },
-    )
-    usage = resp.usage
-    prompt_tokens = usage.prompt_tokens if usage else 0
-    completion_tokens = usage.completion_tokens if usage else 0
-    content = resp.choices[0].message.content or "{}"
+    # Append schema to prompt so models not supporting strict schema still output JSON
+    schema_str = json.dumps(schema)
+    modified_messages = list(messages)
+    modified_messages.append({
+        "role": "user",
+        "content": f"Please provide the output in valid JSON matching this schema:\n{schema_str}"
+    })
 
-    # Record after successful call (soft enforcement — warn if budget exceeded)
-    try:
-        check_and_record(prompt_tokens, completion_tokens, s.llm_daily_token_budget)
-    except BudgetExceededError:
-        logger.warning(
-            "Token budget exceeded after call. Model=%s prompt=%d completion=%d",
-            m, prompt_tokens, completion_tokens
-        )
-
-    return json.loads(content), prompt_tokens, completion_tokens
+    last_exc = None
+    for attempt in range(3):
+        try:
+            resp = await client.chat.completions.create(
+                model=m,
+                messages=modified_messages,  # type: ignore
+                temperature=temperature,
+                response_format={"type": "json_object"},
+            )
+            usage = resp.usage
+            prompt_tokens = usage.prompt_tokens if usage else 0
+            completion_tokens = usage.completion_tokens if usage else 0
+            content = resp.choices[0].message.content or "{}"
+            
+            try:
+                check_and_record(prompt_tokens, completion_tokens, s.llm_daily_token_budget)
+            except BudgetExceededError:
+                logger.warning("Token budget exceeded after call.")
+            
+            return json.loads(content), prompt_tokens, completion_tokens
+        except Exception as e:
+            last_exc = e
+            logger.warning(f"LLM call failed (attempt {attempt+1}/3): {e}")
+            import asyncio
+            await asyncio.sleep(2 ** attempt)
+            
+    raise last_exc or Exception("LLM call failed after 3 attempts")
