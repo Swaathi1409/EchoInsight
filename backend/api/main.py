@@ -85,6 +85,10 @@ async def lifespan(app: FastAPI):
     # Auto-migrate: ensure all model columns exist (SQLite-safe ALTER TABLE)
     await _auto_migrate(settings.database_url)
     
+    # Seed Users, Agents, and Teams
+    from backend.scripts.seed_users import seed
+    await seed()
+    
     # Bootstrap QA Checklists
     from backend.db import get_db_session
     from backend.bootstrap import bootstrap_qa_checklists
