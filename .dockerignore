@@ -1,0 +1,16 @@
+.git
+.github
+.vscode
+.pytest_cache
+__pycache__
+*.pyc
+.env
+.backup
+backups
+data
+scratch
+frontend
+node_modules
+dist
+test_db.sqlite
+*.db

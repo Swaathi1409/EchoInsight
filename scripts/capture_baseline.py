@@ -4,6 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+#URL and paths
 API_URL = "http://localhost:8000/api/v1"
 DB_PATH = "dev_local.db"
 OUTPUT_FILE = Path(".backup/golden_snapshots.json")
