@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     action_layer_enabled: bool = False
 
     # CORS
-    cors_allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    cors_allowed_origins: list[str] = ["*"]
 
     # Observability
     enable_metrics: bool = True
