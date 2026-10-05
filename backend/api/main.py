@@ -89,8 +89,26 @@ async def lifespan(app: FastAPI):
     )
     logger.info("Database engine initialized")
 
-    # Auto-migrate: ensure all model columns exist (SQLite-safe ALTER TABLE)
-    await _auto_migrate(settings.database_url)
+    # Run Alembic migrations for PostgreSQL (replaces pre-deploy command)
+    if "postgresql" in settings.database_url or "postgres" in settings.database_url:
+        try:
+            import subprocess, sys, os
+            backend_dir = os.path.join(os.path.dirname(__file__), "..", "..")
+            alembic_dir = os.path.join(os.path.dirname(__file__), "..")
+            result = subprocess.run(
+                [sys.executable, "-m", "alembic", "upgrade", "head"],
+                cwd=alembic_dir,
+                capture_output=True, text=True, timeout=120,
+            )
+            if result.returncode == 0:
+                logger.info("Alembic migrations applied", output=result.stdout.strip())
+            else:
+                logger.error("Alembic migration failed", stderr=result.stderr.strip())
+        except Exception as exc:
+            logger.error("Failed to run Alembic migrations", error=str(exc))
+    else:
+        # Auto-migrate: ensure all model columns exist (SQLite-safe ALTER TABLE)
+        await _auto_migrate(settings.database_url)
     
     # Seed Users, Agents, and Teams
     from backend.scripts.seed_users import seed
