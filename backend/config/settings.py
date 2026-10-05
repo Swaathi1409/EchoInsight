@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     # pydantic-settings v2 would try JSON-parse list fields before our validator,
     # so we keep this as str and expose a parsed property.
     cors_allowed_origins_str: str = Field(
-        default="http://localhost:3000,http://localhost:5173,https://echoinsight-telecom-intelligence.vercel.app",
+        default="http://localhost:3000,http://localhost:5173,https://echoinsight-telecom-intelligence.vercel.app,https://echoinsight-intelligence.vercel.app",
         alias="cors_allowed_origins",
         validation_alias="cors_allowed_origins",
     )
