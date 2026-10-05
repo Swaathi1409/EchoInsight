@@ -38,6 +38,16 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite+aiosqlite:///./dev_local.db"
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def fix_database_url(cls, v: str) -> str:
+        # Render provides postgresql:// — convert to asyncpg driver
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        return v
+
     # Application
     app_env: str = "development"
     log_level: str = "INFO"
