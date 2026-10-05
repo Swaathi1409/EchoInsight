@@ -36,7 +36,7 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 
 # Copy application code
-COPY --chown=appuser:appuser . /app/backend
+COPY --chown=appuser:appuser . .
 
 USER appuser
 
