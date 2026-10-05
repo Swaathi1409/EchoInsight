@@ -33,7 +33,7 @@ class Settings(BaseSettings):
 
     # LLM — OpenRouter (highest priority when set)
     openrouter_api_key: str = Field(default="", description="OpenRouter API key")
-    openrouter_model: str = "anthropic/claude-haiku-4.5"
+    openrouter_model: str = "anthropic/claude-3-haiku"
 
     # Database
     database_url: str = "sqlite+aiosqlite:///./dev_local.db"
