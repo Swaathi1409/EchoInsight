@@ -14,3 +14,4 @@ node_modules
 dist
 test_db.sqlite
 *.db
+!demo_seed.db

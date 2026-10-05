@@ -76,6 +76,13 @@ async def lifespan(app: FastAPI):
         primary_model=settings.llm_primary_model,
     )
 
+    if "sqlite" in settings.database_url:
+        db_path = settings.database_url.split("///")[-1]
+        import os, shutil
+        if not os.path.exists(db_path) and os.path.exists("demo_seed.db"):
+            shutil.copyfile("demo_seed.db", db_path)
+            logger.info(f"Restored baseline database from demo_seed.db to {db_path}")
+
     init_db(
         database_url=settings.database_url,
         echo=settings.is_development,
