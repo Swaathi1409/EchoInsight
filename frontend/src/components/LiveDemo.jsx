@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
-import { Send, Plus, PhoneOff, Mic, ExternalLink, Trash2, Activity, CheckCircle, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Send, Plus, PhoneOff, Mic, ExternalLink, Trash2, Activity, CheckCircle, AlertTriangle, TrendingUp, Loader2 } from 'lucide-react';
 
 let _idKey = 0;
 const nextKey = () => `demo-${Date.now()}-${++_idKey}`;
@@ -211,9 +211,8 @@ export default function LiveDemo() {
 
       <div className="live-demo-grid">
 
-        {/* Left: Controls */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Session */}
+        {/* Session */}
+        <div className="demo-session">
           <div className="card">
             <div className="card-header">
               <span className="card-title">Session</span>
@@ -241,8 +240,10 @@ export default function LiveDemo() {
             )}
             {jobId && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--amber)' }}>Analysis queued - check the conversation page in ~30s</div>}
           </div>
+        </div>
 
-          {/* Manual Turn */}
+        {/* Manual Turn */}
+        <div className="demo-manual">
           {convId && !ended && (
             <div className="card">
               <div className="card-header"><span className="card-title">Custom Turn</span></div>
@@ -255,13 +256,21 @@ export default function LiveDemo() {
                 placeholder="Enter turn text..." rows={3}
                 style={{ width: '100%', resize: 'vertical', marginBottom: 8, boxSizing: 'border-box' }}
                 onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) appendTurn(); }} />
-              <button className="btn btn-primary btn-sm" onClick={() => appendTurn()} disabled={!text.trim() || loading} style={{ width: '100%' }}>
-                <Send size={13} /> Send Turn
+              <button className="btn btn-primary btn-sm" onClick={() => appendTurn()} disabled={!text.trim() || loading} style={{ width: '100%', position: 'relative', overflow: 'hidden' }}>
+                {loading ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Sending...
+                  </span>
+                ) : (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Send size={13} /> Send Turn</span>
+                )}
               </button>
             </div>
           )}
+        </div>
 
-          {/* Quick Script - D20: show full text, not truncated */}
+        {/* Quick Script */}
+        <div className="demo-quick">
           <div className="card">
             <div className="card-header"><span className="card-title">Quick Script</span></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 280, overflowY: 'auto' }}>
@@ -278,8 +287,9 @@ export default function LiveDemo() {
         </div>
 
         {/* Middle: Transcript */}
-        <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column' }}>
-          <div className="card-header" style={{ padding: '12px 16px' }}>
+        <div className="demo-transcript">
+          <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div className="card-header" style={{ padding: '12px 16px' }}>
             <span className="card-title">Transcript</span>
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{turns.length} turns</span>
           </div>
@@ -310,8 +320,9 @@ export default function LiveDemo() {
         </div>
 
         {/* Right: D20 Provisional State + Commitment Ledger */}
-        <div className="card">
-          <div className="card-header">
+        <div className="demo-state">
+          <div className="card" style={{ height: '100%' }}>
+            <div className="card-header">
             <span className="card-title">Live State</span>
             {convId && !ended && (
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--green)' }}>
