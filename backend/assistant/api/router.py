@@ -335,10 +335,15 @@ async def assistant_chat(
             "latency_ms": 0, "steps": [],
         }, status_code=200)
     except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        import logging
+        logging.getLogger(__name__).error(f"Pipeline error: {e}\n{tb}")
         return JSONResponse({
             "enabled": True,
             "error": "pipeline_error",
-            "message": "The assistant encountered an error. Please try again.",
+            "message": f"The assistant encountered an error: {str(e)}",
+            "traceback": tb,
         }, status_code=500)
 
     latency_ms = (time.perf_counter() - t0) * 1000
