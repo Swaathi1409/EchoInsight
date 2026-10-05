@@ -95,12 +95,22 @@ async def lifespan(app: FastAPI):
     # Seed Users, Agents, and Teams
     from backend.scripts.seed_users import seed
     await seed()
-    
+
     # Bootstrap QA Checklists
     from backend.db import get_db_session
     from backend.bootstrap import bootstrap_qa_checklists
     async with get_db_session() as session:
         await bootstrap_qa_checklists(session)
+
+    # Seed full demo data when requested (required for PostgreSQL/Render deployments)
+    if settings.seed_demo_data:
+        try:
+            from backend.action_layer.demo_seeder import seed_demonstration
+            async with get_db_session() as session:
+                result = await seed_demonstration(session=session)
+                logger.info("Demo data seeded", steps=result.get("steps", []))
+        except Exception as exc:
+            logger.warning("Demo seed failed (non-fatal)", error=str(exc))
 
     yield
 

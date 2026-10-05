@@ -1,0 +1,53 @@
+# Render deployment configuration for EchoInsight backend.
+# Docs: https://render.com/docs/yaml-spec
+#
+# Deploy steps:
+# 1. Push to GitHub
+# 2. Connect this repo in Render dashboard
+# 3. Set all required env vars (see .env.example)
+# 4. Render will auto-detect this file and configure the service
+
+services:
+  - type: web
+    name: echoinsight-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DATABASE_URL
+        fromDatabase:
+          name: echoinsight-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false  # Set to your Vercel URL, e.g. https://your-app.vercel.app
+      - key: SEED_USERS
+        value: admin:changeme_admin:admin,supervisor1:changeme_sup:supervisor,agent1:changeme_agent:agent
+      - key: SEED_DEMO_DATA
+        value: "true"
+      - key: STORE_ORIGINAL_TEXT
+        value: "false"
+      - key: ENABLE_METRICS
+        value: "true"
+    # Run Alembic migrations before the new deploy goes live
+    # alembic.ini lives in /app/backend, so we cd there first
+    preDeployCommand: "cd /app/backend && alembic upgrade head"
+
+databases:
+  - name: echoinsight-db
+    databaseName: echoinsight
+    user: echoinsight
+    plan: free

@@ -51,8 +51,19 @@ class Settings(BaseSettings):
     embeddings_enabled: bool = False
     action_layer_enabled: bool = False
 
-    # CORS
-    cors_allowed_origins: list[str] = ["http://localhost:3000", "http://localhost:5173", "https://echoinsight-telecom-intelligence.vercel.app"]
+    # CORS — stored as a comma-separated string to allow simple env var syntax.
+    # e.g.  CORS_ALLOWED_ORIGINS=https://app.vercel.app,http://localhost:3000
+    # pydantic-settings v2 would try JSON-parse list fields before our validator,
+    # so we keep this as str and expose a parsed property.
+    cors_allowed_origins_str: str = Field(
+        default="http://localhost:3000,http://localhost:5173,https://echoinsight-telecom-intelligence.vercel.app",
+        alias="cors_allowed_origins",
+        validation_alias="cors_allowed_origins",
+    )
+
+    @property
+    def cors_allowed_origins(self) -> list[str]:
+        return [o.strip() for o in self.cors_allowed_origins_str.split(",") if o.strip()]
 
     # Observability
     enable_metrics: bool = True
@@ -60,10 +71,24 @@ class Settings(BaseSettings):
     # Seed users (comma-separated username:password:role)
     seed_users: str = "admin:changeme_admin:admin"
 
+    # Demo data seeding: set to true to seed full demo data on startup.
+    # Required for PostgreSQL deployments (Render) where demo_seed.db is not used.
+    # Safe to set on SQLite too — idempotent.
+    seed_demo_data: bool = False
+
     # Verification thresholds (configurable without code changes)
     qa_confidence_threshold: float = 0.75
-    qa_critical_items: list[str] = ["prohibited_promises", "identity_verification", "disclosure"]
+    # Stored as comma-separated string for same reason as cors_allowed_origins
+    qa_critical_items_str: str = Field(
+        default="prohibited_promises,identity_verification,disclosure",
+        alias="qa_critical_items",
+        validation_alias="qa_critical_items",
+    )
     qa_max_verification_items: int = 5
+
+    @property
+    def qa_critical_items(self) -> list[str]:
+        return [i.strip() for i in self.qa_critical_items_str.split(",") if i.strip()]
 
     @field_validator("app_env")
     @classmethod
