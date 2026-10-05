@@ -38,6 +38,9 @@ ENV PYTHONPATH=/app
 # Copy application code
 COPY --chown=appuser:appuser . .
 
+# Ensure appuser can write to /app and /app/data for SQLite
+RUN mkdir -p /app/data && chown -R appuser:appuser /app /app/data
+
 USER appuser
 
 EXPOSE 8000
