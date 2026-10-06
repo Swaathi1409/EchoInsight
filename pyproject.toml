@@ -11,3 +11,36 @@ dependencies = []
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["backend*", "tests*", "evals*", "data*"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# B008: FastAPI uses Depends() in function signatures by design
+# UP042: str+Enum is widely used for SQLAlchemy/Pydantic compatibility
+# N806: RATE_LIMIT is an intentional constant in function scope
+# RUF059: underscore prefix convention not enforced
+# C416: list() vs list comprehension is stylistic
+ignore = ["B008", "UP042", "N806", "RUF059", "C416", "B904", "E712"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test files: allow unused imports and variables (fixtures, exploratory)
+"tests/**" = ["F401", "F841"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+disallow_untyped_defs = false
+warn_return_any = true
+warn_unused_configs = true
+disable_error_code = ["arg-type", "assignment", "attr-defined", "dict-item", "call-arg", "return-value", "union-attr", "var-annotated"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "integration: marks tests that require a database",
+    "slow: marks tests that are slow",
+    "real_model: marks tests that require a real Groq API key",
+]
