@@ -318,8 +318,9 @@ export default function LiveDemo() {
             )}
           </div>
         </div>
+      </div>
 
-        {/* Right: D20 Provisional State + Commitment Ledger */}
+      {/* Right: D20 Provisional State + Commitment Ledger */}
         <div className="demo-state">
           <div className="card" style={{ height: '100%' }}>
             <div className="card-header">
@@ -334,6 +335,7 @@ export default function LiveDemo() {
           <ProvisionalStatePanel state={provisionalState} commitments={ledger} />
         </div>
       </div>
+    </div>
     </div>
   );
 }
