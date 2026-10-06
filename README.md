@@ -1,4 +1,4 @@
-<img width="1365" height="675" alt="ss (23)" src="https://github.com/user-attachments/assets/869f4b28-6b4a-422b-9681-913012a98b0b" /># EchoInsight
+# EchoInsight
 
 A telecom contact center conversation intelligence and agent quality platform. It ingests call transcripts, redacts PII before storage, runs LLM-powered analysis on conversation end, scores agent quality against a weighted checklist, and presents everything through a role-scoped dashboard.
 
@@ -382,6 +382,8 @@ Analyzing how different agents performs:
 Chat Assistant:
 
 <img width="1365" height="675" alt="ss (23)" src="https://github.com/user-attachments/assets/7afbb49e-eddf-4630-a00c-951416caa7e7" />
+
+<img width="1365" height="675" alt="ss (23)" src="https://github.com/user-attachments/assets/869f4b28-6b4a-422b-9681-913012a98b0b" />
 
 Help Tab in chat assistant:
 
