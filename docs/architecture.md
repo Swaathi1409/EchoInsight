@@ -9,7 +9,6 @@ This document provides a complete narrative of the system's design, embedded wit
 EchoInsight is built as a **Modular Monolith** [ADR-003](file:///docs/architecture-decisions.md) with a microservice-style boundary. 
 The system runs as a stateless API with an out-of-band worker process, backed by PostgreSQL. 
 
-![D0 Master Poster](diagrams/D0_master_poster.svg)
 
 **How to read this diagram:**
 - **Blue boxes** represent deterministic code (Python logic).
@@ -21,7 +20,6 @@ The system runs as a stateless API with an out-of-band worker process, backed by
 
 Who uses EchoInsight, and what external systems does it rely on?
 
-![D1 System Context](diagrams/D1_system_context.svg)
 
 EchoInsight has three roles (Admin, Supervisor, Agent). It relies on Vercel for frontend hosting and Render for backend hosting. For intelligence, it calls Groq (or OpenRouter) via OpenAI-compatible REST APIs. 
 
@@ -29,8 +27,6 @@ EchoInsight has three roles (Admin, Supervisor, Agent). It relies on Vercel for 
 
 The application is deployed on Render's free tier. 
 
-![D2 Runtime Containers](diagrams/D2_runtime_containers.svg)
-![D11 Deployment](diagrams/D11_deployment.svg)
 
 ### Boot Sequence and Ephemeral Storage
 Render's free tier scales to zero after 15 minutes of inactivity. When it wakes up:
@@ -42,7 +38,6 @@ Render's free tier scales to zero after 15 minutes of inactivity. When it wakes 
 
 The backend enforces strict dependency layers to prevent circular imports. 
 
-![D3 Backend Components](diagrams/D3_backend_components.svg)
 
 - The `models` package sits at the bottom (all state definitions).
 - The `api` and `worker` packages sit at the top.
@@ -52,8 +47,6 @@ The backend enforces strict dependency layers to prevent circular imports.
 
 The system processes data in two phases: **Incremental (Per-turn)** and **Final (On End)**.
 
-![D4 Analysis Pipeline](diagrams/D4_analysis_pipeline.svg)
-![D8 Sequence Diagrams](diagrams/D8_sequence_diagrams.svg)
 
 ### Redaction First [ADR-005]
 When a turn arrives, it immediately passes through `ingest/redactor.py`, which uses 9 regex patterns to replace PII with tags (e.g., `[CARD]`). The original text is immediately discarded and **never** stored, logged, or sent to the LLM. 
@@ -69,7 +62,6 @@ When the call ends, a `final_analysis` job is queued. The pipeline orchestrates:
 
 EchoInsight refuses to trust the LLM implicitly.
 
-![D7 QA Scoring Flow](diagrams/D7_qa_scoring.svg)
 
 1. **Evidence Gate**: `validator/evidence_gate.py` asserts that every quote returned by the LLM is an exact substring of the *redacted* transcript. Hallucinated quotes result in a `needs_review` flag.
 2. **Deterministic Fallbacks**: `qa/phrase_matcher.py` uses regex for basic items (e.g., greetings). If the LLM misses it, the code overrides it.
@@ -80,20 +72,16 @@ EchoInsight refuses to trust the LLM implicitly.
 
 The commitment ledger tracks promises made during a call.
 
-![D9 Data Model](diagrams/D9_data_model.svg)
-![D6 Commitment Ledger](diagrams/D6_commitment_ledger.svg)
 
 *Note on D4 bug fix:* During final analysis, provisional commitments (created during incremental analysis) are completely deleted and replaced to avoid duplicates.
 
 ## 8. State and Lifecycle
 
-![D5 State Machine](diagrams/D5_state_machine.svg)
 
 The background worker (`worker/main.py`) polls the DB every 5 seconds for jobs. It also runs an idle sweep (marking active calls ended if no turns arrive for 30 minutes) and a closure sweep (archiving calls after 72 hours).
 
 ## 9. Security & Trust Boundaries
 
-![D10 Security & Trust Boundaries](diagrams/D10_security.svg)
 
 - **Auth**: JWT via `backend/auth.py` (30m expiry).
 - **RBAC Scope**: Scope is applied at the database query level by `get_current_user` in `backend/api/deps.py`. It is impossible for an agent to widen their scope via URL parameters.
@@ -101,7 +89,6 @@ The background worker (`worker/main.py`) polls the DB every 5 seconds for jobs. 
 
 ## 10. Observability and Testing
 
-![D12 Observability](diagrams/D12_observability.svg)
 
 - **Metrics**: Standard `/health` and Prometheus `/metrics`.
 - **Token Budget**: An in-process counter resets daily to prevent cost blowouts.
@@ -109,13 +96,11 @@ The background worker (`worker/main.py`) polls the DB every 5 seconds for jobs. 
 
 ## 11. Frontend Architecture
 
-![D13 Frontend Architecture](diagrams/D13_frontend.svg)
 
 A Vite-built React SPA, using TanStack Query for state and shadcn/ui for components.
 
 ## 12. Optional Layers
 
-![D14 Optional Layers](diagrams/D14_optional_layers.svg)
 
 Features like the Action Layer (PDCA engine) are feature-flagged off (`ACTION_LAYER_ENABLED=false`). The Assistant operates in a read-only mode, executing tools safely without mutating the transcript.
 
@@ -123,7 +108,6 @@ Features like the Action Layer (PDCA engine) are feature-flagged off (`ACTION_LA
 
 What happens when we move beyond the free tier?
 
-![D15 Scale-Out Target](diagrams/D15_scale_out.svg)
 
 **Key scaling changes:**
 1. Move the jobs table queue to Celery + Redis.

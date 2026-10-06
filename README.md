@@ -13,7 +13,6 @@ The deployed instance runs on a pre-seeded SQLite database with representative c
 | Username | Password | Role | Access |
 |---|---|---|---|
 | admin | admin123 | Admin | Full access to all conversations, analytics, admin panel, and system settings |
-| supervisor1 | supervisor1pass | Supervisor | Scoped to team-level conversations, QA overview, and commitment queue |
 | agent1 | agent1pass | Agent | Scoped to own conversations only (linked to agent_00, 15 analyzed calls) |
 | agent2 | agent2pass | Agent | Scoped to own conversations only (linked to agent_02, 6 analyzed calls) |
 
@@ -24,7 +23,7 @@ The deployed instance runs on a pre-seeded SQLite database with representative c
 ### Dashboard (/)
 Overview of the entire contact center. Shows total conversations, analysis completion rate, average QA score, churn risk distribution, and resolution breakdown. Use this to understand the platform's health at a glance.
 
-The admin account will show all 49 seeded conversations across all agents and teams. The supervisor account shows only its team's conversations.
+The admin account will show all 49 seeded conversations across all agents and teams.
 
 ### Conversation List (/conversations)
 A sortable, filterable table of all conversations accessible to the logged-in user. Columns include agent name, team, QA score, resolution, churn risk, and status. Click any row to go to the detail view.
@@ -44,10 +43,10 @@ The core view of the platform. For any analyzed conversation you can see:
 An interactive simulation of the live call monitoring flow. A scripted conversation between a customer and an agent plays out turn by turn. After each agent turn, a per-turn LLM extraction updates the provisional state panel on the right, showing how the system builds its understanding of the call incrementally before the final analysis runs on end. Good for demonstrating the real-time intelligence capability.
 
 ### Quality Overview
-Aggregated QA metrics across the visible conversation set. Shows average scores by checklist item, coverage rates, and how many calls have critical violations or are pending human review. Helps supervisors identify which QA dimensions agents struggle with most.
+Aggregated QA metrics across the visible conversation set. Shows average scores by checklist item, coverage rates, and how many calls have critical violations or are pending human review. Helps identify which QA dimensions agents struggle with most.
 
 ### Open Commitments
-A queue of all commitments extracted from calls that have not yet been marked completed. Supervisors use this to follow up on agent promises such as callbacks, refunds, and escalations.
+A queue of all commitments extracted from calls that have not yet been marked completed. Use this to follow up on agent promises such as callbacks, refunds, and escalations.
 
 ### Cases
 Links related conversations to a case. Useful for tracking a customer issue across multiple call attempts.
@@ -102,8 +101,6 @@ Render (FastAPI, Docker)
 ```
 
 **Architecture documentation:** [docs/architecture.md](docs/architecture.md)
-
-**Architecture diagram:** [docs/architecture/diagrams/D0_master_poster.png](docs/architecture/diagrams/D0_master_poster.png)
 
 ---
 
@@ -227,11 +224,11 @@ python -c "import secrets; print(secrets.token_hex(32))"
 | POST | `/api/v1/conversations/submit` | All | Batch transcript ingest |
 | GET | `/api/v1/conversations/{id}/analysis` | Scoped | Get full analysis result |
 | GET | `/api/v1/conversations/{id}/jobs` | Scoped | Check job status |
-| GET | `/api/v1/conversations/open-commitments` | Supervisor+ | Open commitment queue |
+| GET | `/api/v1/conversations/open-commitments` | Scoped | Open commitment queue |
 | GET | `/api/v1/analytics/agent/{agent_id}` | Scoped | Agent-level analytics |
 | GET | `/api/v1/analytics/team/{team_id}` | Scoped | Team-level analytics |
 | GET/POST | `/api/v1/admin/*` | Admin | User and system management |
-| GET/POST | `/api/v1/cases/*` | Supervisor+ | Case management |
+| GET/POST | `/api/v1/cases/*` | Scoped | Case management |
 | GET/POST | `/api/v1/assistant/*` | All | Chat assistant (read-only) |
 
 Interactive API docs (local): http://localhost:8000/docs
@@ -260,7 +257,7 @@ EchoInsight/
       components/   - React components for all pages
       api.js        - All fetch wrappers with JWT attachment
   docs/
-    architecture/   - All architecture diagrams (SVG, PNG, DOCX)
+    architecture/   - Architecture documentation and reports
     submission/     - Rubric mapping, health evals, additional exploration
     architecture-decisions.md  - 10 ADRs with context and trade-offs
     bug-report.md   - Open known issues
@@ -294,8 +291,7 @@ For a production deployment with persistent data, set `DATABASE_URL` to a Postgr
 
 | Document | Purpose |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | Full system narrative with embedded diagrams |
-| [docs/architecture/00_index.md](docs/architecture/00_index.md) | Diagram reading guide and index |
+| [docs/architecture.md](docs/architecture.md) | Full system narrative |
 | [docs/architecture-decisions.md](docs/architecture-decisions.md) | 10 architecture decision records |
 | [docs/deployment.md](docs/deployment.md) | Deployment guide for Docker and cloud platforms |
 | [docs/bug-report.md](docs/bug-report.md) | Open known issues |
