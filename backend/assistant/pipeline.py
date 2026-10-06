@@ -120,7 +120,7 @@ def _resolve_path(data: Any, path: str) -> str | None:
     for part in parts:
         if not part:
             continue
-            
+
         # Auto-step into _data wrapper if LLM forgot it
         if isinstance(cur, dict) and "_data" in cur:
             # Check if part exists in the wrapper itself just in case
@@ -141,7 +141,7 @@ def _resolve_path(data: Any, path: str) -> str | None:
             return None
         if cur is None:
             return None
-            
+
     return str(cur) if cur is not None else None
 
 
@@ -520,7 +520,16 @@ class AssistantPipeline:
             for part in re.split(r'[^\d]+', self._data_clock):
                 if part:
                     all_values.add(part)
-            unverified = [s for s in stray if s.replace(",", "") not in all_values]
+            unverified = []
+            for s in stray:
+                s_val = s.replace(",", "")
+                if s_val in all_values:
+                    continue
+                # Allow if it's a substring of a text field (like "Account 5594")
+                if len(s_val) >= 2 and any(s_val in val for val in all_values):
+                    continue
+                unverified.append(s)
+            
             if unverified:
                 return _build_fallback(
                     tool_call_results, post_checks, self._data_clock, plan_tools,
