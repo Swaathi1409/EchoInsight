@@ -95,7 +95,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build backend image
-        run: docker build -t echoinsight-backend:ci backend/
+        run: docker build -t echoinsight-backend:ci -f backend/Dockerfile .
       - name: Build frontend image
         run: docker build -t echoinsight-frontend:ci frontend/
       - name: Smoke test health endpoint
