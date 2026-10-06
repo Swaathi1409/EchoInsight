@@ -39,7 +39,7 @@ jobs:
     name: Backend Tests
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: sqlite+aiosqlite:///:memory:
+      DATABASE_URL: "sqlite+aiosqlite:///:memory:"
       GROQ_API_KEY: gsk_test_placeholder
       SECRET_KEY: ${{ secrets.TEST_SECRET_KEY || 'a64aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }}
       APP_ENV: test
