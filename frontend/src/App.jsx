@@ -8,7 +8,7 @@ import AdminPanel from './components/AdminPanel';
 import ActionLayerShell from './action_layer/ActionLayerShell';
 import './action_layer/action_layer.css';
 import AssistantPage from './components/AssistantPage';
-import { LayoutDashboard, Mic2, LogOut, Activity, Shield, Zap, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Mic2, LogOut, Activity, Shield, Zap, MessageSquare, Sun, Moon } from 'lucide-react';
 
 function useRoute() {
   const [hash, setHash] = useState(window.location.hash || '#/');
@@ -118,7 +118,8 @@ export default function App() {
             </button>
             <span className="topbar-title">{topbarTitle}</span>
           </div>
-          <div className="topbar-right">
+          <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <ThemeToggle />
             <StatusIndicator />
           </div>
         </header>
@@ -171,5 +172,47 @@ function StatusIndicator() {
         </div>
       )}
     </div>
+  );
+}
+
+function ThemeToggle() {
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'system');
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('theme', 'dark');
+    } else if (theme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+      localStorage.setItem('theme', 'light');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.removeItem('theme');
+    }
+  }, [theme]);
+
+  const toggle = () => {
+    if (theme === 'system') {
+      const isSystemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setTheme(isSystemDark ? 'light' : 'dark');
+    } else if (theme === 'dark') {
+      setTheme('light');
+    } else {
+      setTheme('system');
+    }
+  };
+
+  return (
+    <button onClick={toggle} title="Toggle theme" style={{ 
+      background: 'none', border: 'none', color: 'var(--text-muted)', 
+      cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', 
+      borderRadius: '4px' 
+    }}>
+      {theme === 'dark' ? <Moon size={16} /> : theme === 'light' ? <Sun size={16} /> : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 10, fontWeight: 600 }}>AUTO</span>
+        </div>
+      )}
+    </button>
   );
 }
