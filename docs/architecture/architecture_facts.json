@@ -1,0 +1,294 @@
+{
+  "meta": {
+    "generated": "2026-10-06",
+    "source_rule": "Every entry carries an evidence reference. Status: implemented | partial | flagged-off | future"
+  },
+
+  "components": {
+    "frontend": {
+      "platform": "Vercel (static SPA)",
+      "tech": ["React 18", "TypeScript", "Vite", "Tailwind CSS", "shadcn/ui", "Recharts", "TanStack Query", "TanStack Table", "React Router v6"],
+      "source": "docs/architecture-decisions.md:131",
+      "pages": [
+        {"name": "Login", "file": "frontend/src/components/Login.jsx", "route": "/login"},
+        {"name": "Dashboard", "file": "frontend/src/components/Dashboard.jsx", "route": "/"},
+        {"name": "ConversationDetail", "file": "frontend/src/components/ConversationDetail.jsx", "route": "/conversations/:id"},
+        {"name": "LiveDemo", "file": "frontend/src/components/LiveDemo.jsx", "route": "/live-demo"},
+        {"name": "LiveAppendPanel", "file": "frontend/src/components/LiveAppendPanel.jsx", "route": "embedded"},
+        {"name": "AssistantPage", "file": "frontend/src/components/AssistantPage.jsx", "route": "/assistant"},
+        {"name": "AssistantPanel", "file": "frontend/src/components/AssistantPanel.jsx", "route": "embedded"},
+        {"name": "AdminPanel", "file": "frontend/src/components/AdminPanel.jsx", "route": "/admin"},
+        {"name": "ActionLayer UI", "file": "frontend/src/action_layer/", "route": "/action", "status": "flagged-off"}
+      ],
+      "api_client": "frontend/src/api.js",
+      "api_base_url_env": "VITE_API_URL"
+    },
+
+    "backend_api": {
+      "platform": "Render.com (Docker web service, single instance)",
+      "tech": ["Python 3.11", "FastAPI 0.111+", "uvicorn", "SQLAlchemy 2", "Alembic", "structlog"],
+      "source": "backend/api/main.py",
+      "entrypoint": "uvicorn backend.api.main:app --host 0.0.0.0 --port 8000",
+      "packages": {
+        "api": {"files": ["backend/api/main.py","backend/api/conversations.py","backend/api/admin.py","backend/api/auth.py","backend/api/health.py","backend/api/metrics.py","backend/api/stream.py","backend/api/cases.py","backend/api/deps.py","backend/api/audit.py"]},
+        "ingest": {"files": ["backend/ingest/redactor.py","backend/ingest/assignment.py"]},
+        "llm": {"files": ["backend/llm/client.py","backend/llm/prompts.py","backend/llm/budget.py"]},
+        "analysis": {"files": ["backend/analysis/pipeline.py","backend/analysis/incremental.py"]},
+        "state": {"files": ["backend/state/reducer.py"]},
+        "qa": {"files": ["backend/qa/scorer.py","backend/qa/verification.py","backend/qa/phrase_matcher.py"]},
+        "validator": {"files": ["backend/validator/evidence_gate.py","backend/validator/hard_gate.py"]},
+        "worker": {"files": ["backend/worker/main.py"]},
+        "action_layer": {"files": ["backend/action_layer/"], "status": "flagged-off", "flag": "ACTION_LAYER_ENABLED"},
+        "assistant": {"files": ["backend/assistant/"]},
+        "models": {"files": ["backend/models.py","backend/domain_model.py","backend/schemas.py"]},
+        "config": {"files": ["backend/config/settings.py","backend/config/checklist_v1.yaml","backend/config/taxonomy.yaml"]},
+        "bootstrap": {"files": ["backend/bootstrap.py"]},
+        "auth": {"files": ["backend/auth.py"]}
+      }
+    },
+
+    "worker": {
+      "description": "Background worker: separate process, polls jobs table every 5 seconds",
+      "entrypoint": "python -m backend.worker.main",
+      "poll_interval_seconds": 5,
+      "max_batch": 20,
+      "source": "backend/worker/main.py:15,133",
+      "idle_sweep_minutes": 30,
+      "close_after_hours": 72
+    },
+
+    "database": {
+      "dev": "SQLite (sqlite+aiosqlite:///./dev_local.db)",
+      "prod": "PostgreSQL 16 via Render managed DB (asyncpg driver)",
+      "orm": "SQLAlchemy 2 AsyncSession",
+      "migrations": "Alembic (5 version files)",
+      "source": "backend/config/settings.py:39, backend/api/main.py:79-84",
+      "seed_snapshot": "demo_seed.db (binary SQLite, committed to repo)",
+      "seed_restore": "On startup: if dev_local.db missing AND demo_seed.db exists, copy demo_seed.db -> dev_local.db",
+      "seed_restore_source": "backend/api/main.py:79-84"
+    },
+
+    "llm_provider": {
+      "priority": ["OpenRouter (when OPENROUTER_API_KEY set)", "Groq (when GROQ_API_KEY set)"],
+      "primary_model": "qwen/qwen3.8-27b",
+      "verifier_model": "openai/gpt-oss-20b",
+      "base_url_groq": "https://api.groq.com/openai/v1",
+      "base_url_openrouter": "https://openrouter.ai/api/v1",
+      "protocol": "OpenAI-compatible REST API",
+      "source": "backend/llm/client.py, backend/config/settings.py:22-36"
+    }
+  },
+
+  "routes": [
+    {"method": "GET", "path": "/health", "auth": "public", "source": "backend/api/health.py"},
+    {"method": "GET", "path": "/ready", "auth": "public", "source": "backend/api/health.py"},
+    {"method": "GET", "path": "/metrics", "auth": "admin", "source": "backend/api/main.py:271-277"},
+    {"method": "POST", "path": "/api/v1/auth/login", "auth": "public", "source": "backend/api/auth.py"},
+    {"method": "POST", "path": "/api/v1/conversations", "auth": "all", "source": "backend/api/conversations.py:73"},
+    {"method": "GET", "path": "/api/v1/conversations", "auth": "scoped", "source": "backend/api/conversations.py"},
+    {"method": "GET", "path": "/api/v1/conversations/{id}", "auth": "scoped", "source": "backend/api/conversations.py"},
+    {"method": "POST", "path": "/api/v1/conversations/{id}/turns", "auth": "scoped", "idempotent": true, "source": "backend/api/conversations.py"},
+    {"method": "POST", "path": "/api/v1/conversations/{id}/end", "auth": "scoped", "source": "backend/api/conversations.py"},
+    {"method": "POST", "path": "/api/v1/conversations/submit", "auth": "all", "source": "backend/api/conversations.py:8"},
+    {"method": "GET", "path": "/api/v1/conversations/{id}/analysis", "auth": "scoped", "source": "backend/api/conversations.py:9"},
+    {"method": "GET", "path": "/api/v1/conversations/{id}/jobs", "auth": "scoped", "source": "backend/api/conversations.py:10"},
+    {"method": "GET", "path": "/api/v1/conversations/open-commitments", "auth": "supervisor+", "source": "backend/api/conversations.py:11"},
+    {"method": "GET", "path": "/api/v1/conversations/false-resolutions", "auth": "supervisor+", "source": "backend/api/conversations.py:12"},
+    {"method": "GET", "path": "/api/v1/analytics/overview", "auth": "supervisor+", "source": "backend/api/metrics.py"},
+    {"method": "GET", "path": "/api/v1/analytics/agent/{agent_id}", "auth": "scoped", "source": "backend/api/conversations.py:13"},
+    {"method": "GET", "path": "/api/v1/analytics/team/{team_id}", "auth": "scoped", "source": "backend/api/conversations.py:14"},
+    {"method": "GET/POST/PATCH", "path": "/api/v1/admin/*", "auth": "admin", "source": "backend/api/admin.py"},
+    {"method": "GET/POST", "path": "/api/v1/cases/*", "auth": "supervisor+", "source": "backend/api/cases.py"},
+    {"method": "GET/POST", "path": "/api/v1/action/*", "auth": "supervisor+", "source": "backend/action_layer/api/router.py", "status": "flagged-off"},
+    {"method": "GET/POST", "path": "/api/v1/assistant/*", "auth": "all", "source": "backend/assistant/api/router.py"},
+    {"method": "GET", "path": "/api/v1/conversations/{id}/stream", "auth": "scoped", "source": "backend/api/stream.py"}
+  ],
+
+  "database_tables": [
+    {"name": "users", "key_cols": ["id","username","password_hash","role","agent_id","team_id"], "in_seed": true, "source": "backend/models.py"},
+    {"name": "agents", "key_cols": ["agent_id","display_name","team_id","synthetic_assignment"], "in_seed": true, "count_seed": 25, "source": "backend/models.py"},
+    {"name": "teams", "key_cols": ["team_id","display_name","synthetic_assignment"], "in_seed": true, "count_seed": 5, "source": "backend/models.py"},
+    {"name": "conversations", "key_cols": ["id","source_id","agent_id","team_id","status","provisional_state_json","analysis_version"], "in_seed": true, "count_seed": 49, "source": "backend/models.py"},
+    {"name": "turns", "key_cols": ["turn_id","conversation_id","seq","speaker","text_redacted","content_hash","idempotency_key"], "in_seed": true, "count_seed": 264, "source": "backend/models.py"},
+    {"name": "segments", "key_cols": ["id","conversation_id","start_turn_id","reason"], "in_seed": false, "source": "backend/models.py"},
+    {"name": "state_events", "key_cols": ["id","conversation_id","turn_id","event_type","payload","provisional"], "in_seed": false, "note": "0 rows in demo seed; append-only log not yet written by pipeline", "source": "backend/models.py"},
+    {"name": "commitments", "key_cols": ["commitment_id","conversation_id","description","owner","deadline","status","provisional"], "in_seed": true, "count_seed": 68, "source": "backend/models.py"},
+    {"name": "analyses", "key_cols": ["analysis_id","conversation_id","version","model","prompt_version","summary","resolution","churn_risk","false_resolution"], "in_seed": true, "count_seed": 57, "source": "backend/models.py"},
+    {"name": "qa_results", "key_cols": ["qa_result_id","analysis_id","score","score_label","coverage","critical_violation","items_json"], "in_seed": true, "count_seed": 57, "source": "backend/models.py"},
+    {"name": "jobs", "key_cols": ["job_id","job_type","status","conversation_id","attempts","error"], "in_seed": false, "source": "backend/models.py"},
+    {"name": "audit_log", "key_cols": ["id","user_id","action","resource_type","resource_id","details_json"], "in_seed": true, "count_seed": 277, "source": "backend/models.py"},
+    {"name": "cases", "key_cols": ["case_id","external_id","title","status","created_by"], "in_seed": false, "source": "backend/models.py"},
+    {"name": "case_conversations", "key_cols": ["case_id","conversation_id","linked_at"], "in_seed": false, "source": "backend/models.py"},
+    {"name": "review_annotations", "key_cols": ["review_id","conversation_id","reviewer_id","verdict","qa_override_json"], "in_seed": false, "source": "backend/models.py"},
+    {"name": "qa_checklist", "key_cols": ["id","key","name"], "in_seed": false, "source": "backend/models.py"},
+    {"name": "qa_checklist_version", "key_cols": ["id","checklist_id","version_number","status","content_hash","settings"], "in_seed": false, "source": "backend/models.py"},
+    {"name": "qa_checklist_item", "key_cols": ["id","version_id","item_key","weight","required","critical","evaluation_type"], "in_seed": false, "source": "backend/models.py"},
+    {"name": "act_items (action layer)", "key_cols": ["id","conversation_id","action_type","status"], "in_seed": false, "source": "backend/action_layer/models.py", "status": "flagged-off"},
+    {"name": "asst_session", "key_cols": ["id","user_id","created_at"], "in_seed": false, "source": "backend/assistant/models.py"},
+    {"name": "asst_message", "key_cols": ["id","session_id","role","content"], "in_seed": false, "source": "backend/assistant/models.py"}
+  ],
+
+  "data_flows": {
+    "turn_append": [
+      {"step": 1, "label": "HTTP POST /turns", "from": "Browser", "to": "API", "data": "speaker, text (original), idempotency_key", "deterministic": true},
+      {"step": 2, "label": "JWT decode + scope check", "from": "api/deps.py", "to": "DB:users", "deterministic": true},
+      {"step": 3, "label": "Idempotency check", "from": "API", "to": "DB:turns", "deterministic": true},
+      {"step": 4, "label": "Redact PII (9 regex patterns)", "from": "ingest/redactor.py", "to": "text_redacted", "deterministic": true, "note": "REDACTION BOUNDARY: original text discarded here"},
+      {"step": 5, "label": "Store redacted turn", "from": "API", "to": "DB:turns", "deterministic": true},
+      {"step": 6, "label": "Queue per_turn_extraction job", "from": "API", "to": "DB:jobs", "deterministic": true},
+      {"step": 7, "label": "Return 201 + provisional state", "from": "API", "to": "Browser", "deterministic": true}
+    ],
+    "per_turn_extraction": [
+      {"step": 1, "label": "Poll jobs table", "from": "worker/main.py", "to": "DB:jobs", "deterministic": true},
+      {"step": 2, "label": "Load turn + context", "from": "analysis/incremental.py", "to": "DB:turns", "deterministic": true},
+      {"step": 3, "label": "Build SYSTEM_TURN prompt", "from": "llm/prompts.py", "to": "LLM provider", "deterministic": false, "llm": true},
+      {"step": 4, "label": "Parse + validate JSON", "from": "llm/client.py", "deterministic": true},
+      {"step": 5, "label": "apply_turn_extraction()", "from": "state/reducer.py", "deterministic": true, "note": "pure function: no DB access"},
+      {"step": 6, "label": "Update provisional_state_json", "from": "API", "to": "DB:conversations", "deterministic": true}
+    ],
+    "final_analysis": [
+      {"step": 1, "label": "POST /end -> queue final_analysis job", "from": "API", "to": "DB:jobs", "deterministic": true},
+      {"step": 2, "label": "Worker picks job", "from": "worker/main.py", "deterministic": true},
+      {"step": 3, "label": "Load all turns", "from": "analysis/pipeline.py", "to": "DB:turns", "deterministic": true},
+      {"step": 4, "label": "Build transcript (format: [SPEAKER|turn_NNNN] text)", "from": "analysis/pipeline.py", "deterministic": true},
+      {"step": 5, "label": "Windowed split if >40 turns", "from": "analysis/pipeline.py:_chunk_turns", "deterministic": true, "note": "window=40 turns, overlap=5 turns"},
+      {"step": 6, "label": "LLM call: SYSTEM_FINAL prompt", "from": "llm/client.py", "to": "LLM provider", "llm": true, "schema": "FINAL_ANALYSIS_SCHEMA"},
+      {"step": 7, "label": "D14 fix: all-neutral trajectory fallback", "from": "analysis/pipeline.py:148-171", "deterministic": true},
+      {"step": 8, "label": "Evidence gate: commitments", "from": "validator/evidence_gate.py", "deterministic": true},
+      {"step": 9, "label": "LLM call: SYSTEM_QA prompt", "from": "llm/client.py", "to": "LLM provider", "llm": true, "schema": "QA_SCHEMA"},
+      {"step": 10, "label": "Evidence gate: QA items", "from": "validator/evidence_gate.py", "deterministic": true},
+      {"step": 11, "label": "Phrase matcher augmentation (4 items)", "from": "qa/phrase_matcher.py", "deterministic": true},
+      {"step": 12, "label": "Selective verification (2nd LLM call, per-item)", "from": "qa/verification.py", "to": "LLM provider", "llm": true, "model": "verifier"},
+      {"step": 13, "label": "Confidence normalisation (D7 fix)", "from": "analysis/pipeline.py", "deterministic": true},
+      {"step": 14, "label": "Hard gate (7 structural checks)", "from": "validator/hard_gate.py", "deterministic": true},
+      {"step": 15, "label": "QA scoring: coverage, weighted score, critical cap", "from": "qa/scorer.py", "deterministic": true},
+      {"step": 16, "label": "Persist Analysis + QAResult + Commitments", "from": "analysis/pipeline.py", "to": "DB:analyses,qa_results,commitments", "deterministic": true}
+    ]
+  },
+
+  "environment_variables": [
+    {"key": "GROQ_API_KEY", "secret": true, "required": true, "source": "backend/config/settings.py:22"},
+    {"key": "OPENROUTER_API_KEY", "secret": true, "required": false, "note": "Highest priority when set", "source": "backend/config/settings.py:35"},
+    {"key": "GEMINI_API_KEY", "secret": true, "required": false, "source": "backend/config/settings.py:31"},
+    {"key": "SECRET_KEY", "secret": true, "required": true, "note": "64-char hex for JWT signing", "source": "backend/config/settings.py:54"},
+    {"key": "DATABASE_URL", "secret": true, "required": true, "default": "sqlite+aiosqlite:///./dev_local.db", "source": "backend/config/settings.py:39"},
+    {"key": "APP_ENV", "secret": false, "default": "development", "values": ["development","production","test"], "source": "backend/config/settings.py:52"},
+    {"key": "LOG_LEVEL", "secret": false, "default": "INFO", "source": "backend/config/settings.py:53"},
+    {"key": "LLM_PRIMARY_MODEL", "secret": false, "default": "qwen/qwen3.8-27b", "source": "backend/config/settings.py:23"},
+    {"key": "LLM_VERIFIER_MODEL", "secret": false, "default": "openai/gpt-oss-20b", "source": "backend/config/settings.py:24"},
+    {"key": "LLM_DAILY_TOKEN_BUDGET", "secret": false, "default": 400000, "source": "backend/config/settings.py:25"},
+    {"key": "CORS_ALLOWED_ORIGINS", "secret": false, "default": "localhost:3000,localhost:5173,vercel URLs", "source": "backend/config/settings.py:68-76"},
+    {"key": "SEED_USERS", "secret": true, "default": "admin:changeme_admin:admin", "source": "backend/config/settings.py:82"},
+    {"key": "SEED_DEMO_DATA", "secret": false, "default": false, "source": "backend/config/settings.py:87"},
+    {"key": "STORE_ORIGINAL_TEXT", "secret": false, "default": false, "source": "backend/config/settings.py:58"},
+    {"key": "EMBEDDINGS_ENABLED", "secret": false, "default": false, "source": "backend/config/settings.py:61"},
+    {"key": "ACTION_LAYER_ENABLED", "secret": false, "default": false, "source": "backend/config/settings.py:62"},
+    {"key": "QA_CONFIDENCE_THRESHOLD", "secret": false, "default": 0.75, "source": "backend/config/settings.py:90"},
+    {"key": "QA_CRITICAL_ITEMS", "secret": false, "default": "prohibited_promises,identity_verification,disclosure", "source": "backend/config/settings.py:92"},
+    {"key": "ENABLE_METRICS", "secret": false, "default": true, "source": "backend/config/settings.py:79"},
+    {"key": "ACCESS_TOKEN_EXPIRE_MINUTES", "secret": false, "default": 30, "source": "backend/config/settings.py:55"},
+    {"key": "VITE_API_URL", "secret": false, "frontend": true, "required": true, "source": "frontend/vite.config.js"}
+  ],
+
+  "feature_flags": [
+    {"flag": "EMBEDDINGS_ENABLED", "default": false, "status": "flagged-off", "source": "backend/config/settings.py:61"},
+    {"flag": "ACTION_LAYER_ENABLED", "default": false, "status": "flagged-off", "source": "backend/config/settings.py:62"},
+    {"flag": "STORE_ORIGINAL_TEXT", "default": false, "status": "flagged-off", "source": "backend/config/settings.py:58"},
+    {"flag": "SEED_DEMO_DATA", "default": false, "status": "implemented", "note": "Set true on Render for PostgreSQL seed"},
+    {"flag": "ENABLE_METRICS", "default": true, "status": "implemented"}
+  ],
+
+  "external_systems": [
+    {"name": "Groq API", "type": "LLM provider", "url": "https://api.groq.com/openai/v1", "protocol": "OpenAI-compatible REST", "auth": "GROQ_API_KEY", "data_sent": "Redacted transcript text only", "source": "backend/llm/client.py"},
+    {"name": "OpenRouter API", "type": "LLM provider (optional, higher priority)", "url": "https://openrouter.ai/api/v1", "protocol": "OpenAI-compatible REST", "auth": "OPENROUTER_API_KEY", "source": "backend/llm/client.py"},
+    {"name": "HuggingFace Datasets", "type": "Dataset source", "url": "https://huggingface.co/datasets/talkmap/telecom-conversation-corpus", "data_flow": "Fetch via datasets API; raw rows not committed", "source": "docs/dataset.md:5-7"},
+    {"name": "GitHub", "type": "Source control + CI", "source": ".github/workflows/"},
+    {"name": "Vercel", "type": "Frontend hosting (static SPA)", "config": "frontend/vercel.json", "source": "render.yaml"},
+    {"name": "Render.com", "type": "Backend hosting (Docker)", "config": "render.yaml", "source": "render.yaml"},
+    {"name": "Render Postgres", "type": "Managed PostgreSQL (production)", "source": "render.yaml:46-51"}
+  ],
+
+  "security": {
+    "auth": {"type": "JWT HS256", "expiry_minutes": 30, "hashing": "argon2id", "source": "backend/auth.py"},
+    "roles": ["admin (all data)", "supervisor (team-scoped)", "agent (own conversations)"],
+    "scope_enforcement": "Server-side via get_current_user() + DB membership; client params cannot widen scope",
+    "redaction_boundary": "ingest/redactor.py: applied before any storage, logging, embedding or LLM call",
+    "pii_tags": ["[CARD]","[ACCOUNT]","[PHONE]","[EMAIL]","[PIN]","[ADDRESS]","[NATIONAL_ID]","[DOB]","[NAME]"],
+    "prompt_injection_defense": ["XML transcript tags", "explicit system instruction", "evidence gate"],
+    "sql_injection": "SQLAlchemy ORM parameterized queries; no raw string interpolation",
+    "cors": "CORS_ALLOWED_ORIGINS env var allow-list",
+    "rate_limit": "200 req/min per IP in production (in-process window); source: backend/api/main.py:214",
+    "headers": ["X-Content-Type-Options","X-Frame-Options","Referrer-Policy","X-XSS-Protection","HSTS","Permissions-Policy","CSP (prod)"],
+    "secrets": ".env file in .gitignore; all secrets in env vars; no build-arg secrets",
+    "not_implemented": ["Token refresh", "Token blocklist/revocation", "Per-user distributed rate limit", "OWASP formal review", "Penetration test"]
+  },
+
+  "observability": {
+    "logging": "structlog JSON in production, pretty in dev; request_id bound to every log line",
+    "health_endpoints": ["/health", "/ready"],
+    "metrics_endpoint": "/metrics (Prometheus ASGI app, admin only)",
+    "admin_health_page": "AdminPanel.jsx system health tab",
+    "token_budget": "backend/llm/budget.py: in-process daily counter",
+    "audit_log": "DB table audit_log; 277 entries in demo seed",
+    "eval_pipeline": "evals/run_eval.py; results in evals/results/",
+    "ci": ".github/workflows/"
+  },
+
+  "deployment": {
+    "local_dev": {
+      "backend": "uvicorn backend.api.main:app --reload --port 8000",
+      "frontend": "cd frontend && npm run dev (port 5173)",
+      "db": "SQLite dev_local.db (auto-created; demo_seed.db restored if missing)",
+      "docker_compose": "docker-compose.yml (API + worker)"
+    },
+    "production": {
+      "backend": "Render.com Docker web service (render.yaml); single instance; free tier",
+      "frontend": "Vercel static SPA (frontend/vercel.json)",
+      "db": "Render managed PostgreSQL free tier",
+      "migrations": "Alembic upgrade head run as subprocess on startup (api/main.py:93-111)",
+      "seed_on_boot": "SEED_DEMO_DATA=true runs demo_seeder.py idempotently",
+      "cold_start": "Render free tier spins down after 15 min inactivity; first request ~30-60s",
+      "cors": "CORS_ALLOWED_ORIGINS=https://echoinsight-telecom-intelligence.vercel.app"
+    },
+    "known_limits": [
+      "Single instance: no horizontal scaling without load balancer",
+      "In-process token budget counter: not shared across restarts or workers",
+      "In-process rate limiter: not distributed",
+      "SQLite write bottleneck (dev mode only)",
+      "Cold start delay on Render free tier",
+      "Ephemeral filesystem on Render (demo_seed.db not available; SEED_DEMO_DATA used instead)"
+    ]
+  },
+
+  "qa_scoring": {
+    "items": [
+      {"id": "greeting", "weight": 1.0, "critical": false},
+      {"id": "identity_verification", "weight": 2.0, "critical": true},
+      {"id": "empathy", "weight": 1.5, "critical": false},
+      {"id": "disclosure", "weight": 1.5, "critical": true},
+      {"id": "prohibited_promises", "weight": 2.0, "critical": true},
+      {"id": "closure", "weight": 1.0, "critical": false}
+    ],
+    "coverage_threshold": 0.70,
+    "critical_violation_cap": 60,
+    "needs_review_coverage_penalty": 0.5,
+    "source": "backend/config/checklist_v1.yaml, backend/qa/scorer.py"
+  },
+
+  "deterministic_vs_llm": [
+    {"task": "PII redaction", "type": "deterministic", "module": "ingest/redactor.py"},
+    {"task": "Agent/team assignment", "type": "deterministic", "module": "ingest/assignment.py"},
+    {"task": "Turn idempotency check", "type": "deterministic", "module": "api/conversations.py"},
+    {"task": "State merge (reducer)", "type": "deterministic", "module": "state/reducer.py"},
+    {"task": "Evidence gate (quote check)", "type": "deterministic", "module": "validator/evidence_gate.py"},
+    {"task": "Hard gate (structural check)", "type": "deterministic", "module": "validator/hard_gate.py"},
+    {"task": "Phrase matcher (4 QA items)", "type": "deterministic", "module": "qa/phrase_matcher.py"},
+    {"task": "QA score formula", "type": "deterministic", "module": "qa/scorer.py"},
+    {"task": "Long-call windowing", "type": "deterministic", "module": "analysis/pipeline.py"},
+    {"task": "D14 all-neutral fallback", "type": "deterministic", "module": "analysis/pipeline.py"},
+    {"task": "Per-turn state extraction", "type": "llm", "module": "analysis/incremental.py", "prompt": "SYSTEM_TURN", "model": "primary"},
+    {"task": "Final analysis (summary, reasons, resolution, churn, commitments)", "type": "llm", "module": "analysis/pipeline.py", "prompt": "SYSTEM_FINAL", "model": "primary"},
+    {"task": "QA item scoring (6 items)", "type": "llm", "module": "analysis/pipeline.py", "prompt": "SYSTEM_QA", "model": "primary"},
+    {"task": "Selective verification", "type": "llm", "module": "qa/verification.py", "prompt": "SYSTEM_VERIFIER", "model": "verifier"}
+  ]
+}
