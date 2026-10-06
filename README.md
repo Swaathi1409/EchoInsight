@@ -307,15 +307,20 @@ For a production deployment with persistent data, set `DATABASE_URL` to a Postgr
 
 Dashboard - Overview:
 
-<img width="1365" height="675" alt="ss (5)" src="https://github.com/user-attachments/assets/5ac7f791-1c62-470e-a692-eb6ff8a08d1a" />
+<img width="1365" height="675" alt="image" src="https://github.com/user-attachments/assets/054d2512-6486-4cf0-807d-28bc7b6b6626" />
 
 
 List of conversations:
 
+<img width="1123" height="631" alt="image" src="https://github.com/user-attachments/assets/e65a8920-f835-4f92-af89-ddbb649ceb52" />
+
+
+Transcript of a conversation:
+
 <img width="1131" height="628" alt="image" src="https://github.com/user-attachments/assets/e6065bcc-f936-4b7a-8e6d-6165c5a09eca" />
 
 
-Analysis of a conversation:
+Analysis of the conversation:
 
 <img width="893" height="632" alt="image" src="https://github.com/user-attachments/assets/916c1a4b-9f2a-4833-a713-45c7e6d0f85b" />
 
@@ -333,6 +338,15 @@ Commitments proposed in the conversation:
 Option for an reviewer to review the work done by EchoInsight AI on a periodic basis and add comments:
 
 <img width="1121" height="571" alt="image" src="https://github.com/user-attachments/assets/4c15eeae-7d20-4247-b223-43d7069cfdbf" />
+
+
+Open commitments and its deadline:
+
+<img width="1124" height="631" alt="image" src="https://github.com/user-attachments/assets/59c4fd6c-3c09-4ee2-9a81-a7934c33a71e" />
+
+False resolution:
+
+<img width="1127" height="520" alt="image" src="https://github.com/user-attachments/assets/d778d4ab-cfb8-4751-bb75-440fe096dae4" />
 
 
 Live demo to test the project and see live analysis:
@@ -383,7 +397,6 @@ Chat Assistant:
 
 <img width="1365" height="675" alt="ss (23)" src="https://github.com/user-attachments/assets/7afbb49e-eddf-4630-a00c-951416caa7e7" />
 
-<img width="1365" height="675" alt="ss (23)" src="https://github.com/user-attachments/assets/869f4b28-6b4a-422b-9681-913012a98b0b" />
 
 Help Tab in chat assistant:
 
