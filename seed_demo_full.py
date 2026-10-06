@@ -243,7 +243,7 @@ print("Initiatives:")
 for i in c.execute("SELECT id, title, stage, metric_key, target_value FROM act_initiatives").fetchall():
     print(f"  {dict(i)}")
 print("Recurring Issues:")
-for r in c.execute("SELECT id, reason, frequency, severity, status FROM act_recurring_issues").fetchall():
+for r in c.execute("SELECT id, reason_label, volume FROM act_recurring_issues").fetchall():
     print(f"  {dict(r)}")
 
 conn.close()
