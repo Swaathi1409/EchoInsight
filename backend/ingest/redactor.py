@@ -34,8 +34,8 @@ _RULES: list[tuple[re.Pattern[str], str]] = [
 # Words that start with a capital letter but are NOT names in common agent/customer speech.
 _NOT_NAMES = frozenset({
     "sorry", "glad", "here", "calling", "unable", "sure", "afraid",
-    "happy", "afraid", "pleased", "not", "from", "just", "with", "also",
-    "afraid", "going", "ready", "sorry", "unable",
+    "happy", "pleased", "not", "from", "just", "with", "also",
+    "going", "ready",
 })
 
 

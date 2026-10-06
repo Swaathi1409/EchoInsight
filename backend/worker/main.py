@@ -1,13 +1,14 @@
 """Background worker: polls for queued jobs and runs them."""
 from __future__ import annotations
+
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from backend.config.settings import get_settings
-from backend.db import init_db, get_db_session
+from backend.db import get_db_session, init_db
 from backend.domain_model import JobStatus, JobType
 from backend.models import Job
 
@@ -36,7 +37,7 @@ async def _process_one(job_id: str) -> None:
             return
         # Mark running
         job.status = JobStatus.RUNNING.value
-        job.started_at = datetime.now(timezone.utc)
+        job.started_at = datetime.now(UTC)
         job.attempts += 1
         await session.flush()
 
@@ -48,7 +49,7 @@ async def _process_one(job_id: str) -> None:
         async with get_db_session() as session:
             job = await session.get(Job, job_id)
             job.status = JobStatus.SUCCEEDED.value
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             await session.flush()
 
     except Exception as exc:
@@ -61,17 +62,18 @@ async def _process_one(job_id: str) -> None:
                 else:
                     job.status = JobStatus.QUEUED.value
                 job.error = str(exc)[:1000]
-                job.completed_at = datetime.now(timezone.utc)
+                job.completed_at = datetime.now(UTC)
                 await session.flush()
 
 
 async def poll_loop() -> None:
     logger.info("Worker started, polling every %ds", POLL_INTERVAL)
-    from datetime import timedelta
     import uuid
-    from backend.models import Conversation, Turn
-    from backend.domain_model import ConversationStatus, JobType
+    from datetime import timedelta
+
     from backend.bootstrap import bootstrap_qa_checklists
+    from backend.domain_model import ConversationStatus, JobType
+    from backend.models import Conversation, Turn
 
     # Bootstrap QA Checklists on worker startup too
     async with get_db_session() as session:
@@ -80,22 +82,22 @@ async def poll_loop() -> None:
     while True:
         try:
             async with get_db_session() as session:
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 idle_threshold = now - timedelta(minutes=30)
-                
+
                 active_convs = (await session.execute(
                     select(Conversation).where(Conversation.status == ConversationStatus.ACTIVE.value)
                 )).scalars().all()
-                
+
                 for conv in active_convs:
                     last_turn = (await session.execute(
                         select(Turn.timestamp).where(Turn.conversation_id == conv.id).order_by(Turn.seq.desc()).limit(1)
                     )).scalar_one_or_none()
                     # Use most recent activity: max of turn timestamp vs conv started_at
                     # This prevents immediately re-closing freshly reopened conversations
-                    started_t = conv.started_at.replace(tzinfo=timezone.utc) if conv.started_at and conv.started_at.tzinfo is None else (conv.started_at or now)
+                    started_t = conv.started_at.replace(tzinfo=UTC) if conv.started_at and conv.started_at.tzinfo is None else (conv.started_at or now)
                     if last_turn:
-                        last_t = last_turn.replace(tzinfo=timezone.utc) if last_turn.tzinfo is None else last_turn
+                        last_t = last_turn.replace(tzinfo=UTC) if last_turn.tzinfo is None else last_turn
                         # Use whichever is more recent: last turn or when this session started
                         effective_last_active = max(last_t, started_t)
                         if effective_last_active < idle_threshold:
@@ -110,21 +112,21 @@ async def poll_loop() -> None:
                                 conversation_id=conv.id,
                                 idempotency_key=f"final-idle-{conv.id}-{uuid.uuid4().hex[:8]}",
                             ))
-                
+
                 closed_threshold = now - timedelta(hours=72)
                 ended_convs = (await session.execute(
                     select(Conversation).where(
                         Conversation.status == ConversationStatus.ENDED.value
                     )
                 )).scalars().all()
-                
+
                 for conv in ended_convs:
                     if conv.ended_at:
-                        ended_t = conv.ended_at.replace(tzinfo=timezone.utc) if conv.ended_at.tzinfo is None else conv.ended_at
+                        ended_t = conv.ended_at.replace(tzinfo=UTC) if conv.ended_at.tzinfo is None else conv.ended_at
                         if ended_t < closed_threshold:
                             logger.info("Closing 72h expired conversation %s", conv.id[:8])
                             conv.status = ConversationStatus.CLOSED.value
-                
+
                 await session.flush()
 
             async with get_db_session() as session:
@@ -143,7 +145,6 @@ async def poll_loop() -> None:
 
 
 def main() -> None:
-    import os
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     s = get_settings()
     init_db(s.database_url)

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import collections
 import time
-from typing import Any
 
 
 class LLMBudgetExhaustedError(Exception):
@@ -57,9 +56,9 @@ class AssistantLLMAdapter:
         if user_id is not None:
             self._check_rate_limit(user_id)
 
-        from backend.llm.budget import check_budget, check_and_record, BudgetExceededError
-        from backend.llm.client import get_client
         from backend.config.settings import get_settings
+        from backend.llm.budget import BudgetExceededError, check_and_record, check_budget
+        from backend.llm.client import get_client
 
         s = get_settings()
         try:
@@ -67,7 +66,9 @@ class AssistantLLMAdapter:
         except BudgetExceededError as e:
             raise LLMBudgetExhaustedError(str(e)) from e
 
-        import asyncio, re as _re
+        import asyncio
+        import re as _re
+
         from openai import AsyncOpenAI
 
         # Prefer OpenRouter when key is configured
@@ -124,23 +125,23 @@ class AssistantLLMAdapter:
         import json
         content = resp.choices[0].message.content or "{}"
         content = content.strip()
-        
+
         start_brace = content.find('{')
         start_bracket = content.find('[')
-        
+
         start = -1
         if start_brace != -1 and start_bracket != -1:
             start = min(start_brace, start_bracket)
         else:
             start = max(start_brace, start_bracket)
-            
+
         if start != -1:
             end_brace = content.rfind('}')
             end_bracket = content.rfind(']')
             end = max(end_brace, end_bracket)
             if end != -1 and end >= start:
                 content = content[start:end+1]
-                
+
         content = content.strip()
 
 

@@ -15,9 +15,7 @@ Tests cover:
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-import pytest
+from datetime import UTC, datetime
 
 from backend.action_layer.risk_engine import (
     RiskComponent,
@@ -26,7 +24,6 @@ from backend.action_layer.risk_engine import (
     compute_risk_index,
     compute_what_if,
 )
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -91,7 +88,7 @@ def make_qa(critical_violation=False):
     }
 
 
-AS_OF = datetime(2026, 10, 3, 12, 0, 0, tzinfo=timezone.utc)
+AS_OF = datetime(2026, 10, 3, 12, 0, 0, tzinfo=UTC)
 
 
 # ── Golden Fixture: invariant helper ──────────────────────────────────────────

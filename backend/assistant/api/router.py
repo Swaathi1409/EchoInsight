@@ -6,10 +6,8 @@ Additive only: does not touch any existing route.
 from __future__ import annotations
 
 import dataclasses
-import json
 import time
 import uuid
-from typing import Any
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -18,9 +16,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import get_current_user
-from backend.db import DbSession
 from backend.assistant.settings import disabled_response, is_assistant_enabled
-from backend.assistant.tool_registry import compact_catalog, load_tools, tools_for_role
+from backend.assistant.tool_registry import compact_catalog, tools_for_role
+from backend.db import DbSession
 
 router = APIRouter(prefix="/api/v1/assistant", tags=["assistant"])
 
@@ -84,7 +82,6 @@ async def assistant_help(
 
     role = _user_role(current_user)
     # Check action layer enabled
-    from backend.action_layer.api.router import is_action_layer_enabled
     try:
         al_enabled = True  # simplified; real check via settings
     except Exception:
@@ -396,7 +393,8 @@ async def clear_session_context(
     current_user=Depends(get_current_user),
 ):
     """Clear resolved context (entities, filters) for a session."""
-    from sqlalchemy import select, update
+    from sqlalchemy import update
+
     from backend.assistant.models import AsstSession
     await session.execute(
         update(AsstSession)
@@ -416,7 +414,7 @@ async def post_feedback(
 ):
     """Save user feedback for an assistant message."""
     from backend.assistant.models import AsstFeedback
-    
+
     fb = AsstFeedback(
         message_id=req.message_id,
         rating=req.rating,
@@ -430,9 +428,11 @@ async def post_feedback(
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 async def _get_session_context(session: AsyncSession, session_id: str) -> dict:
-    from sqlalchemy import select
-    from backend.assistant.models import AsstSession
     import json as _json
+
+    from sqlalchemy import select
+
+    from backend.assistant.models import AsstSession
     row = (await session.execute(
         select(AsstSession).where(AsstSession.id == session_id)
     )).scalars().first()
@@ -445,7 +445,8 @@ async def _get_session_context(session: AsyncSession, session_id: str) -> dict:
 
 
 async def _get_data_clock(session: AsyncSession) -> str:
-    from sqlalchemy import select, func
+    from sqlalchemy import func, select
+
     from backend.models import Conversation
     max_dt = (await session.execute(
         select(func.max(Conversation.started_at))
@@ -457,6 +458,7 @@ async def _get_data_clock(session: AsyncSession) -> str:
 
 async def _check_action_layer_enabled(session: AsyncSession) -> bool:
     from sqlalchemy import select
+
     from backend.action_layer.models import ActSettings
     try:
         row = (await session.execute(select(ActSettings).limit(1))).scalars().first()
@@ -467,6 +469,7 @@ async def _check_action_layer_enabled(session: AsyncSession) -> bool:
 
 async def _get_asst_settings(session: AsyncSession):
     from sqlalchemy import select
+
     from backend.assistant.models import AsstSettings
     return (await session.execute(select(AsstSettings).limit(1))).scalars().first()
 
@@ -481,10 +484,11 @@ async def _persist_message(
     latency_ms: float,
 ) -> str:
     import json as _json
-    from backend.assistant.models import AsstSession, AsstMessage
 
     # Upsert session
     from sqlalchemy import select, update
+
+    from backend.assistant.models import AsstMessage, AsstSession
     existing = (await session.execute(
         select(AsstSession).where(AsstSession.id == session_id)
     )).scalars().first()

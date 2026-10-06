@@ -17,7 +17,7 @@ SAFETY:
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -59,16 +59,16 @@ def _window_split(
     min_date = min(dates)
     max_date = max(dates)
     if hasattr(min_date, "replace"):
-        min_date = min_date.replace(tzinfo=timezone.utc) if min_date.tzinfo is None else min_date
+        min_date = min_date.replace(tzinfo=UTC) if min_date.tzinfo is None else min_date
     if hasattr(max_date, "replace"):
-        max_date = max_date.replace(tzinfo=timezone.utc) if max_date.tzinfo is None else max_date
+        max_date = max_date.replace(tzinfo=UTC) if max_date.tzinfo is None else max_date
 
     span_days = max(1, (max_date - min_date).days)
 
     if span_days >= 14:
         window_days = 7
         cutoff = datetime(
-            max_date.year, max_date.month, max_date.day, tzinfo=timezone.utc
+            max_date.year, max_date.month, max_date.day, tzinfo=UTC
         )
         from datetime import timedelta
         cutoff -= timedelta(days=window_days)
@@ -85,7 +85,7 @@ def _window_split(
             current.append(c)
             continue
         if hasattr(started, "replace") and started.tzinfo is None:
-            started = started.replace(tzinfo=timezone.utc)
+            started = started.replace(tzinfo=UTC)
         if started >= cutoff:
             current.append(c)
         else:
@@ -266,23 +266,22 @@ def compute_pdca_check(
     Returns:
         {sufficient_data, post_n, post_metrics, check_results, caveats}
     """
-    from datetime import timedelta
 
     post_convs = [
         c for c in post_conversations
         if c.get("conversation", {}).get("started_at") is not None
         and (lambda s: (
-            s.replace(tzinfo=timezone.utc) if s.tzinfo is None else s
+            s.replace(tzinfo=UTC) if s.tzinfo is None else s
         ) >= (
-            implementation_date.replace(tzinfo=timezone.utc)
+            implementation_date.replace(tzinfo=UTC)
             if implementation_date.tzinfo is None else implementation_date
         ))(c["conversation"]["started_at"])
     ]
 
     n_post = len(post_convs)
     days_since = (
-        (as_of.replace(tzinfo=timezone.utc) if as_of.tzinfo is None else as_of)
-        - (implementation_date.replace(tzinfo=timezone.utc)
+        (as_of.replace(tzinfo=UTC) if as_of.tzinfo is None else as_of)
+        - (implementation_date.replace(tzinfo=UTC)
            if implementation_date.tzinfo is None else implementation_date)
     ).days
 

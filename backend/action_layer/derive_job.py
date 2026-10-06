@@ -12,8 +12,7 @@ Rules:
 """
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -21,21 +20,25 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.action_layer.config import (
-    DEFAULT_RISK_RULES_VERSION,
-    DEFAULT_PRIORITY_RULES_VERSION,
-    DEFAULT_PLAYBOOK_RULES_VERSION,
     DEFAULT_PHRASE_LISTS_VERSION,
+    DEFAULT_PLAYBOOK_RULES_VERSION,
+    DEFAULT_PRIORITY_RULES_VERSION,
+    DEFAULT_RISK_RULES_VERSION,
 )
 from backend.action_layer.draft_builder import build_template_draft
-from backend.action_layer.models import ActDraft, ActItem, ActItemEvent, ActRecommendation, ActSettings
+from backend.action_layer.models import (
+    ActDraft,
+    ActItem,
+    ActItemEvent,
+    ActRecommendation,
+    ActSettings,
+)
 from backend.action_layer.playbook import get_recommendations
 from backend.action_layer.repository import CoreRepository
 from backend.action_layer.risk_engine import (
     compute_intervention_type,
     compute_priority,
     compute_risk_index,
-    compute_what_if,
-    INTERVENTION_HUMAN_LABELS,
 )
 from backend.models import AuditLog
 
@@ -54,10 +57,10 @@ async def get_as_of(settings: ActSettings | None, repo: CoreRepository) -> datet
     """Resolve the as-of clock based on settings."""
     if settings is None or settings.as_of_mode == "dataset_max":
         max_dt = await repo.get_max_started_at()
-        return max_dt or datetime.now(timezone.utc)
+        return max_dt or datetime.now(UTC)
     if settings.as_of_mode == "manual" and settings.manual_as_of:
         return settings.manual_as_of
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def _get_settings(session: AsyncSession) -> ActSettings | None:
@@ -308,7 +311,7 @@ async def derive_all_pending(
     for the current rules bundle, and derive items for them.
     Returns a summary dict.
     """
-    from backend.models import Analysis, Conversation
+    from backend.models import Analysis
 
     # Find conversations with final analyses
     analyzed_rows = (await session.execute(

@@ -2,14 +2,16 @@
 Shared pytest fixtures for unit and integration tests.
 """
 from __future__ import annotations
+
 import os
+
+import httpx
 import pytest
 import pytest_asyncio
-import httpx
 
 from backend.auth import hash_password
 from backend.config.settings import get_settings
-from backend.db import init_db, create_all_tables, close_db, get_db_session
+from backend.db import close_db, create_all_tables, get_db_session, init_db
 from backend.models import User
 
 
@@ -80,8 +82,9 @@ async def action_enabled_client(monkeypatch, env, app_db):
     monkeypatch.setenv("ACTION_LAYER_ENABLED", "true")
 
     from backend.api.main import create_app
-    from backend.db import get_db_session as _get_session, create_all_tables as _create_tables
     from backend.auth import hash_password as _hash
+    from backend.db import create_all_tables as _create_tables
+    from backend.db import get_db_session as _get_session
 
     app = create_app()
     # Ensure tables exist in this engine (create_app may have re-initialised the engine)
@@ -90,8 +93,8 @@ async def action_enabled_client(monkeypatch, env, app_db):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         async with _get_session() as session:
-            from backend.models import User as _User
             from backend.action_layer.models import ActSettings as _ActSettings
+            from backend.models import User as _User
             session.add(_User(username="admin", password_hash=_hash("pass"),
                               role="admin", is_active=True))
             session.add(_ActSettings(enabled=True))

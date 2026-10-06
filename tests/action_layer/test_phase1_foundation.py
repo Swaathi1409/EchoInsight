@@ -14,7 +14,6 @@ import pytest
 
 from tests.conftest import get_token
 
-
 # ── Import smoke tests ────────────────────────────────────────────────────────
 
 def test_action_layer_config_imports():
@@ -32,9 +31,16 @@ def test_action_layer_config_imports():
 def test_action_layer_models_import():
     """All act_* ORM models import and have correct table names."""
     from backend.action_layer.models import (
-        ActSettings, ActRulesVersion, ActItem, ActItemEvent,
-        ActRecommendation, ActDraft, ActRecurringIssue,
-        ActPreventionSuggestion, ActInitiative, ActInitiativeEvent,
+        ActDraft,
+        ActInitiative,
+        ActInitiativeEvent,
+        ActItem,
+        ActItemEvent,
+        ActPreventionSuggestion,
+        ActRecommendation,
+        ActRecurringIssue,
+        ActRulesVersion,
+        ActSettings,
     )
     expected_tables = {
         "act_settings", "act_rules_version", "act_items", "act_item_events",
@@ -77,8 +83,8 @@ def test_action_layer_disabled_env():
 
 def test_act_tables_in_base_metadata():
     """All act_* tables appear in Base.metadata after importing action layer models."""
+    import backend.action_layer.models
     from backend.models import Base
-    import backend.action_layer.models  # noqa: F401
     table_names = set(Base.metadata.tables.keys())
     act_tables = {t for t in table_names if t.startswith("act_")}
     assert len(act_tables) == 10, f"Expected 10 act_* tables, got {len(act_tables)}: {act_tables}"

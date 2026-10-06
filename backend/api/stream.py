@@ -13,21 +13,20 @@ Event types:
   ping        — keepalive every 10s
 """
 from __future__ import annotations
+
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
 from backend.api.deps import get_current_user
-from backend.db import _db_session_dependency, get_db_session
-from backend.models import Conversation, Turn, Analysis
-from backend.api.conversations import _get_or_404, _turn_resp, _analysis_resp
-from backend.models import QAResult, Commitment
+from backend.db import get_db_session
 from backend.domain_model import ConversationStatus
+from backend.models import Analysis, Commitment, Conversation, QAResult, Turn
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +116,7 @@ async def stream_conversation(
                 # Keepalive ping every 10s
                 ping_counter += 1
                 if ping_counter % 5 == 0:
-                    yield _sse("ping", {"ts": datetime.now(timezone.utc).isoformat()})
+                    yield _sse("ping", {"ts": datetime.now(UTC).isoformat()})
 
                 await asyncio.sleep(_POLL_INTERVAL)
 

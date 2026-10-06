@@ -4,10 +4,12 @@ Tests: unauthenticated, wrong role, cross-team, cross-agent, parameter tampering
 prompt injection in turn text.
 """
 from __future__ import annotations
+
 import os
+
+import httpx
 import pytest
 import pytest_asyncio
-import httpx
 
 os.environ.setdefault("GROQ_API_KEY", "gsk_test")
 os.environ.setdefault("SECRET_KEY", "a" * 64)
@@ -16,8 +18,8 @@ os.environ.setdefault("APP_ENV", "test")
 
 from backend.auth import hash_password
 from backend.config.settings import get_settings
-from backend.db import get_db_session, init_db, create_all_tables, close_db
-from backend.models import User, Agent, Team
+from backend.db import close_db, create_all_tables, get_db_session, init_db
+from backend.models import Agent, Team, User
 
 
 @pytest_asyncio.fixture

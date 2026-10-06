@@ -2,11 +2,13 @@
 Groq LLM client with token budget enforcement and retry.
 """
 from __future__ import annotations
-import logging
+
 import json
-from openai import AsyncOpenAI
+import logging
 from typing import Any
-import time
+
+from openai import AsyncOpenAI
+
 from backend.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -43,13 +45,13 @@ async def chat_json(
     Call LLM with JSON format.
     Returns (parsed_dict, prompt_tokens, completion_tokens).
     """
-    from backend.llm.budget import check_budget, check_and_record, BudgetExceededError
+    from backend.llm.budget import BudgetExceededError, check_and_record, check_budget
 
     s = get_settings()
     m = model
     if not m:
         m = s.openrouter_model if s.openrouter_api_key else s.llm_primary_model
-        
+
     client = get_client()
 
     try:
@@ -80,14 +82,14 @@ async def chat_json(
             prompt_tokens = usage.prompt_tokens if usage else 0
             completion_tokens = usage.completion_tokens if usage else 0
             content = resp.choices[0].message.content or "{}"
-            
+
             try:
                 check_and_record(prompt_tokens, completion_tokens, s.llm_daily_token_budget)
             except BudgetExceededError:
                 logger.warning("Token budget exceeded after call.")
-            
+
             import re
-            
+
             # Find the outermost JSON object or array
             match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', content)
             if match:
@@ -97,16 +99,16 @@ async def chat_json(
                 match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", content)
                 if match:
                     content = match.group(1)
-            
+
             content = content.strip()
             if not content:
                 content = "{}"
-                
+
             return json.loads(content), prompt_tokens, completion_tokens
         except Exception as e:
             last_exc = e
             logger.warning(f"LLM call failed (attempt {attempt+1}/3): {e}")
             import asyncio
             await asyncio.sleep(2 ** attempt)
-            
+
     raise last_exc or Exception("LLM call failed after 3 attempts")

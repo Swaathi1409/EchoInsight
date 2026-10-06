@@ -6,7 +6,6 @@ ASSISTANT_ENABLED=false by default; admin can toggle at runtime via asst_setting
 from __future__ import annotations
 
 import os
-from functools import lru_cache
 
 
 def assistant_env_enabled() -> bool:

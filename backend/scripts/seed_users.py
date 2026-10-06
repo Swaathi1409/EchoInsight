@@ -1,13 +1,15 @@
 """Seed initial users and synthetic agents/teams."""
 from __future__ import annotations
+
 import asyncio
 import logging
+
 from sqlalchemy import select
 
 from backend.auth import hash_password
 from backend.config.settings import get_settings
-from backend.db import get_db_session, init_db, create_all_tables
-from backend.domain_model import NUM_AGENTS, NUM_TEAMS, AGENTS_PER_TEAM
+from backend.db import create_all_tables, get_db_session, init_db
+from backend.domain_model import AGENTS_PER_TEAM, NUM_AGENTS, NUM_TEAMS
 from backend.ingest.assignment import AGENT_NAMES, TEAM_NAMES
 from backend.models import Agent, Team, User
 
@@ -56,7 +58,7 @@ async def seed() -> None:
                 ))
                 logger.info("Created user: %s (%s)", username, role)
         await session.flush()
-        
+
         # Seed assistant settings
         from backend.assistant.models import AsstSettings
         asst_row = (await session.execute(select(AsstSettings).limit(1))).scalars().first()

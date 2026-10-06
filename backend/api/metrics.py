@@ -4,15 +4,15 @@ Exposes /metrics in Prometheus text format.
 Tracks: request counts, error rates, LLM call stats, job queue depth, conversation counts.
 """
 from __future__ import annotations
+
 import time
 from collections import defaultdict
-from typing import Any
 
 from fastapi import APIRouter, Response
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 
 from backend.db import get_db_session
-from backend.models import Conversation, Job, Analysis
+from backend.models import Analysis, Conversation, Job
 
 router = APIRouter(tags=["metrics"])
 
@@ -108,8 +108,8 @@ async def metrics() -> Response:
 
     # Token budget
     try:
-        from backend.llm.budget import get_budget_status
         from backend.config.settings import get_settings
+        from backend.llm.budget import get_budget_status
         budget = get_budget_status(get_settings().llm_daily_token_budget)
         lines.append("# HELP echoinsight_token_budget_used Tokens used today")
         lines.append("# TYPE echoinsight_token_budget_used gauge")
@@ -126,6 +126,6 @@ async def metrics() -> Response:
 @router.get("/budget-status", tags=["metrics"])
 async def budget_status() -> dict:
     """JSON endpoint showing daily LLM token budget usage."""
-    from backend.llm.budget import get_budget_status
     from backend.config.settings import get_settings
+    from backend.llm.budget import get_budget_status
     return get_budget_status(get_settings().llm_daily_token_budget)

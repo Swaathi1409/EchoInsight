@@ -1,9 +1,8 @@
 """
 Unit tests for the state reducer and windowing utilities.
 """
-import pytest
+from backend.domain_model import ChurnRisk, CustomerSentiment, ResolutionStatus
 from backend.state.reducer import apply_turn_extraction, initial_state
-from backend.domain_model import ResolutionStatus, CustomerSentiment, ChurnRisk
 
 
 def _state(conv_id="test-conv"):

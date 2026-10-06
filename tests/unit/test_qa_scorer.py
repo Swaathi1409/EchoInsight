@@ -1,5 +1,5 @@
 """Unit tests for QA scorer — pure function, no DB, no LLM."""
-from backend.qa.scorer import score, ITEM_WEIGHTS, CRITICAL_ITEMS
+from backend.qa.scorer import CRITICAL_ITEMS, ITEM_WEIGHTS, score
 
 
 def _item(item_id, result, confidence=0.9, quote="test quote", turn_id="turn_0001", hr=False):

@@ -78,7 +78,8 @@ async def lifespan(app: FastAPI):
 
     if "sqlite" in settings.database_url:
         db_path = settings.database_url.split("///")[-1]
-        import os, shutil
+        import os
+        import shutil
         if not os.path.exists(db_path) and os.path.exists("demo_seed.db"):
             shutil.copyfile("demo_seed.db", db_path)
             logger.info(f"Restored baseline database from demo_seed.db to {db_path}")
@@ -92,7 +93,9 @@ async def lifespan(app: FastAPI):
     # Run Alembic migrations for PostgreSQL (replaces pre-deploy command)
     if "postgresql" in settings.database_url or "postgres" in settings.database_url:
         try:
-            import subprocess, sys, os
+            import os
+            import subprocess
+            import sys
             alembic_dir = os.path.join(os.path.dirname(__file__), "..")
             env = os.environ.copy()
             # Pass the already-converted asyncpg URL so alembic doesn't use psycopg2
@@ -112,14 +115,14 @@ async def lifespan(app: FastAPI):
     else:
         # Auto-migrate: ensure all model columns exist (SQLite-safe ALTER TABLE)
         await _auto_migrate(settings.database_url)
-    
+
     # Seed Users, Agents, and Teams
     from backend.scripts.seed_users import seed
     await seed()
 
     # Bootstrap QA Checklists
-    from backend.db import get_db_session
     from backend.bootstrap import bootstrap_qa_checklists
+    from backend.db import get_db_session
     async with get_db_session() as session:
         await bootstrap_qa_checklists(session)
 
@@ -148,11 +151,12 @@ async def _auto_migrate(database_url: str) -> None:
     """
     if "sqlite" not in database_url:
         return  # Postgres: use Alembic
-    from backend.db import get_engine
-    from backend.models import Base
+    from sqlalchemy import inspect, text
+
     import backend.action_layer.models  # noqa: F401 — registers act_* tables into Base.metadata
     import backend.assistant.models  # noqa: F401 — registers asst_* tables into Base.metadata
-    from sqlalchemy import text, inspect
+    from backend.db import get_engine
+    from backend.models import Base
     engine = get_engine()
     async with engine.begin() as conn:
         # Ensure all tables exist
@@ -293,12 +297,13 @@ def create_app() -> FastAPI:
     # Routers
     app.include_router(health_router)
 
-    from backend.api.auth import router as auth_router
-    from backend.api.conversations import router as conv_router, analytics_router
-    from backend.api.metrics import router as metrics_router
     from backend.api.admin import router as admin_router
-    from backend.api.stream import router as stream_router
+    from backend.api.auth import router as auth_router
     from backend.api.cases import router as cases_router
+    from backend.api.conversations import analytics_router
+    from backend.api.conversations import router as conv_router
+    from backend.api.metrics import router as metrics_router
+    from backend.api.stream import router as stream_router
     app.include_router(auth_router)
     app.include_router(conv_router)
     app.include_router(analytics_router)

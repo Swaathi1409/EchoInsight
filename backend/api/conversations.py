@@ -14,9 +14,11 @@ Conversations router:
   GET    /api/v1/analytics/team/{team_id}       - team analytics
 """
 from __future__ import annotations
-import hashlib, logging, uuid
-from datetime import datetime, timezone, timedelta
-from typing import Any
+
+import hashlib
+import logging
+import uuid
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select
@@ -25,18 +27,36 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.api.deps import get_current_user
 from backend.db import _db_session_dependency
 from backend.domain_model import (
-    ConversationStatus, JobStatus, JobType,
-    TurnExtractionStatus, UserRole, TURN_ID_FORMAT
+    TURN_ID_FORMAT,
+    ConversationStatus,
+    JobStatus,
+    JobType,
+    TurnExtractionStatus,
+    UserRole,
 )
-from backend.ingest.assignment import assign, AGENT_NAMES, TEAM_NAMES
+from backend.ingest.assignment import AGENT_NAMES, TEAM_NAMES, assign
 from backend.ingest.redactor import redact_turn
 from backend.models import (
-    Agent, Analysis, Conversation, Job, QAResult, Team, Turn, User, Commitment
+    Agent,
+    Analysis,
+    Commitment,
+    Conversation,
+    Job,
+    QAResult,
+    Team,
+    Turn,
+    User,
 )
 from backend.schemas import (
-    AppendTurnRequest, AppendTurnResponse, ConversationDetail,
-    ConversationSummary, CreateConversationRequest, JobResponse,
-    SubmitTranscriptRequest, SubmitTranscriptResponse, TurnResponse
+    AppendTurnRequest,
+    AppendTurnResponse,
+    ConversationDetail,
+    ConversationSummary,
+    CreateConversationRequest,
+    JobResponse,
+    SubmitTranscriptRequest,
+    SubmitTranscriptResponse,
+    TurnResponse,
 )
 from backend.state.reducer import apply_turn_extraction, initial_state
 
@@ -49,7 +69,6 @@ analytics_router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 
 async def _ensure_agent_team(session: AsyncSession, agent_id: str, team_id: str) -> None:
     """Create synthetic agent/team rows if they don't exist."""
-    from backend.ingest.assignment import AGENT_NAMES, TEAM_NAMES
     if not (await session.get(Team, team_id)):
         session.add(Team(team_id=team_id, display_name=TEAM_NAMES.get(team_id, team_id),
                          synthetic_assignment=True))
@@ -240,7 +259,7 @@ async def submit_transcript(
     conv = Conversation(
         id=conv_id, source_id=body.source_id, agent_id=agent_id, team_id=team_id,
         channel=body.channel, status=ConversationStatus.ENDED.value,
-        ended_at=datetime.now(timezone.utc), synthetic_assignment=True,
+        ended_at=datetime.now(UTC), synthetic_assignment=True,
     )
     session.add(conv)
     await session.flush()
@@ -251,7 +270,7 @@ async def submit_transcript(
             turn_id=TURN_ID_FORMAT.format(seq=i),
             conversation_id=conv_id, seq=i,
             speaker=t.speaker.value,
-            timestamp=t.timestamp or datetime.now(timezone.utc),
+            timestamp=t.timestamp or datetime.now(UTC),
             text_redacted=redacted,
             content_hash=hashlib.sha256(redacted.encode()).hexdigest(),
             idempotency_key=t.idempotency_key,
@@ -288,7 +307,7 @@ async def open_commitments(
     q = q.order_by(Conversation.ended_at.desc()).offset(offset).limit(limit)
     rows = (await session.execute(q)).scalars().all()
     conv_ids = [c.id for c in rows]
-    
+
     # Fetch final commitments for these conversations
     final_coms_map = {}
     if conv_ids:
@@ -309,7 +328,7 @@ async def open_commitments(
         else:
             prov = conv.provisional_state_json or {}
             open_c = prov.get("open_commitments", [])
-        
+
         if open_c:
             result.append({
                 "conversation_id": conv.id, "agent_id": conv.agent_id,
@@ -422,7 +441,7 @@ async def append_turn(
         conversation_id=conv_id,
         seq=seq,
         speaker=body.speaker.value,
-        timestamp=body.timestamp or datetime.now(timezone.utc),
+        timestamp=body.timestamp or datetime.now(UTC),
         text_redacted=redacted,
         content_hash=content_hash,
         idempotency_key=body.idempotency_key,
@@ -481,7 +500,7 @@ async def end_conversation(
         raise HTTPException(status_code=409, detail="Conversation is already ended")
 
     conv.status = ConversationStatus.ENDED.value
-    conv.ended_at = datetime.now(timezone.utc)
+    conv.ended_at = datetime.now(UTC)
 
     job = Job(
         job_id=str(uuid.uuid4()),
@@ -543,8 +562,8 @@ async def reopen_conversation(
         raise HTTPException(status_code=409, detail="Only ended conversations can be reopened")
 
     if conv.ended_at:
-        ended_t = conv.ended_at.replace(tzinfo=timezone.utc) if conv.ended_at.tzinfo is None else conv.ended_at
-        if datetime.now(timezone.utc) - ended_t > timedelta(hours=72):
+        ended_t = conv.ended_at.replace(tzinfo=UTC) if conv.ended_at.tzinfo is None else conv.ended_at
+        if datetime.now(UTC) - ended_t > timedelta(hours=72):
             conv.status = ConversationStatus.CLOSED.value
             await session.flush()
             raise HTTPException(status_code=409, detail="Resume window (72 hours) has expired. Conversation is now closed.")
@@ -553,14 +572,14 @@ async def reopen_conversation(
     last_turn = (await session.execute(
         select(Turn.turn_id).where(Turn.conversation_id == conv_id).order_by(Turn.seq.desc()).limit(1)
     )).scalar_one_or_none()
-    
+
     seg = Segment(conversation_id=conv_id, reason="resume", start_turn_id=last_turn)
     session.add(seg)
 
     preserved_version = conv.analysis_version
     conv.status = ConversationStatus.ACTIVE.value
     conv.ended_at = None
-    conv.started_at = datetime.now(timezone.utc)  # Reset so idle sweep doesn't instantly re-end
+    conv.started_at = datetime.now(UTC)  # Reset so idle sweep doesn't instantly re-end
     await session.flush()
 
     from backend.api.audit import audit_log
@@ -655,23 +674,23 @@ async def _get_or_404(conv_id: str, session: AsyncSession, user: User) -> Conver
         raise HTTPException(403, "Access denied")
     if user.role == UserRole.SUPERVISOR.value and conv.team_id != user.team_id:
         raise HTTPException(403, "Access denied")
-        
+
     # Lazy idle timeout
     if conv.status == ConversationStatus.ACTIVE.value:
         from backend.models import Turn
         last_turn = (await session.execute(
             select(Turn.timestamp).where(Turn.conversation_id == conv_id).order_by(Turn.seq.desc()).limit(1)
         )).scalar_one_or_none()
-        
-        now = datetime.now(timezone.utc)
+
+        now = datetime.now(UTC)
         if last_turn:
-            last_t = last_turn.replace(tzinfo=timezone.utc) if last_turn.tzinfo is None else last_turn
+            last_t = last_turn.replace(tzinfo=UTC) if last_turn.tzinfo is None else last_turn
             # Disable idle timeout for historical testing to prevent instant-close on reopen
             # if (now - last_t) > timedelta(minutes=30):
             #     conv.status = ConversationStatus.ENDED.value
             #     conv.end_reason = "idle_timeout"
             #     conv.ended_at = now
-            # 
+            #
             #     job = Job(
             #         job_id=str(uuid.uuid4()),
             #         job_type=JobType.FINAL_ANALYSIS.value,
@@ -681,14 +700,14 @@ async def _get_or_404(conv_id: str, session: AsyncSession, user: User) -> Conver
             #     )
             #     session.add(job)
             await session.flush()
-            
+
     # Lazy resume window timeout
     if conv.status == ConversationStatus.ENDED.value and conv.ended_at:
-        ended_t = conv.ended_at.replace(tzinfo=timezone.utc) if conv.ended_at.tzinfo is None else conv.ended_at
-        if (datetime.now(timezone.utc) - ended_t) > timedelta(hours=72):
+        ended_t = conv.ended_at.replace(tzinfo=UTC) if conv.ended_at.tzinfo is None else conv.ended_at
+        if (datetime.now(UTC) - ended_t) > timedelta(hours=72):
             conv.status = ConversationStatus.CLOSED.value
             await session.flush()
-            
+
     return conv
 
 

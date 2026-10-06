@@ -21,7 +21,6 @@ Rules:
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 import structlog
@@ -133,7 +132,7 @@ async def transition_item(
     if outcome is not None and outcome not in (OUTCOME_VALUES - {None}):
         raise WorkflowError(
             "invalid_outcome",
-            f"Outcome must be one of: retained, left, no_response, unknown.",
+            "Outcome must be one of: retained, left, no_response, unknown.",
         )
 
     # ── Apply transition ──────────────────────────────────────────────────────

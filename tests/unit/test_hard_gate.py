@@ -2,10 +2,8 @@
 Unit tests for the validator hard gate (7 conditions).
 No LLM, no database. Pure deterministic validation logic.
 """
-import pytest
 from backend.validator.hard_gate import (
-    validate_analysis, ValidationResult,
-    VALID_REASONS, VALID_RESOLUTION,
+    validate_analysis,
 )
 
 

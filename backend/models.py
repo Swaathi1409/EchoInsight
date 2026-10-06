@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     Float,
@@ -22,7 +23,6 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy import JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 

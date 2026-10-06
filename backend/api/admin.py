@@ -10,21 +10,22 @@ Admin and reviewer API routes:
   PATCH /api/v1/checklists/{version}        - update (creates new version)
 """
 from __future__ import annotations
+
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, desc, update
+from sqlalchemy import desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.deps import get_current_user
 from backend.api.audit import audit_log
+from backend.api.deps import get_current_user
 from backend.db import _db_session_dependency
 from backend.domain_model import UserRole
-from backend.models import AuditLog, QAResult, Analysis, Conversation, User, ReviewAnnotation
+from backend.models import AuditLog, Conversation, QAResult, ReviewAnnotation, User
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +174,7 @@ async def create_review(
 
     import json as _json
     review_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     annotation = ReviewAnnotation(
         review_id=review_id,
         conversation_id=conv_id,
@@ -248,7 +249,7 @@ async def annotate_qa_item(
         human_verdict=body.human_verdict,
         note=body.note,
         annotated_by=user.id,
-        annotated_at=datetime.now(timezone.utc).isoformat(),
+        annotated_at=datetime.now(UTC).isoformat(),
     )
     _qa_annotations.setdefault(qa_result_id, []).append(annotation.model_dump())
 
@@ -262,7 +263,8 @@ async def annotate_qa_item(
 # Checklist admin CRUD with versioning
 # ---------------------------------------------------------------------------
 
-from backend.models import QAChecklist, QAChecklistVersion, QAChecklistItem
+from backend.models import QAChecklist, QAChecklistItem, QAChecklistVersion
+
 
 class ChecklistItemSchema(BaseModel):
     item_key: str
@@ -304,14 +306,14 @@ async def list_checklists(
 ) -> list[dict]:
     """List all available checklist policy versions."""
     _require_supervisor_or_above(user)
-    
+
     # Get checklists with their active versions
     q = select(QAChecklist, QAChecklistVersion).outerjoin(
-        QAChecklistVersion, 
+        QAChecklistVersion,
         (QAChecklist.id == QAChecklistVersion.checklist_id) & (QAChecklistVersion.status == "active")
     )
     rows = (await session.execute(q)).all()
-    
+
     result = []
     for checklist, active_ver in rows:
         result.append({
@@ -337,13 +339,13 @@ async def get_checklist(
     checklist = (await session.execute(q)).scalar_one_or_none()
     if not checklist:
         raise HTTPException(status_code=404, detail=f"Checklist '{key}' not found")
-        
+
     q_ver = select(QAChecklistVersion).where(
         QAChecklistVersion.checklist_id == checklist.id,
         QAChecklistVersion.status == "active"
     ).order_by(QAChecklistVersion.version_number.desc()).limit(1)
     ver = (await session.execute(q_ver)).scalar_one_or_none()
-    
+
     items = []
     if ver:
         q_items = select(QAChecklistItem).where(QAChecklistItem.version_id == ver.id).order_by(QAChecklistItem.display_order)
@@ -359,7 +361,7 @@ async def get_checklist(
                 "enabled": i.enabled,
                 "evaluation_type": i.evaluation_type,
             })
-            
+
     return {
         "key": checklist.key,
         "name": checklist.name,
@@ -370,8 +372,9 @@ async def get_checklist(
     }
 
 
-import json
 import hashlib
+import json
+
 
 def _compute_hash(data: dict) -> str:
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode('utf-8')).hexdigest()
@@ -385,10 +388,10 @@ async def create_checklist_version(
 ) -> dict:
     """Create a new version for a checklist."""
     _require_admin(user)
-    
+
     q = select(QAChecklist).where(QAChecklist.key == key)
     checklist = (await session.execute(q)).scalar_one_or_none()
-    
+
     if not checklist:
         # Create checklist if not exists
         checklist = QAChecklist(
@@ -398,15 +401,15 @@ async def create_checklist_version(
         )
         session.add(checklist)
         await session.flush()
-        
+
     # Find latest version number
     q_latest = select(func.max(QAChecklistVersion.version_number)).where(QAChecklistVersion.checklist_id == checklist.id)
     latest_ver = (await session.execute(q_latest)).scalar() or 0
     new_version_num = latest_ver + 1
-    
+
     data_dict = body.model_dump()
     content_hash = _compute_hash(data_dict)
-    
+
     # Create version
     new_ver = QAChecklistVersion(
         checklist_id=checklist.id,
@@ -414,12 +417,12 @@ async def create_checklist_version(
         status="active",
         source="admin_ui",
         created_by=user.username,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         content_hash=content_hash,
         settings=body.settings or {}
     )
     session.add(new_ver)
-    
+
     # Deactivate older active versions
     q_deactivate = update(QAChecklistVersion).where(
         QAChecklistVersion.checklist_id == checklist.id,
@@ -428,7 +431,7 @@ async def create_checklist_version(
     ).values(status="archived")
     await session.execute(q_deactivate)
     await session.flush()
-    
+
     for idx, item in enumerate(body.items):
         db_item = QAChecklistItem(
             version_id=new_ver.id,
@@ -445,11 +448,11 @@ async def create_checklist_version(
             applicability_note=item.applicability_note
         )
         session.add(db_item)
-        
+
     await audit_log(session, user_id=user.id, action="create_checklist_version",
                     resource_type="checklist", resource_id=key,
                     details={"version_number": new_version_num, "item_count": len(body.items)})
-                    
+
     return {"key": key, "version_number": new_version_num}
 
 class PurgeResponse(BaseModel):
@@ -464,12 +467,13 @@ async def purge_data(
 ) -> PurgeResponse:
     """Purge raw transcripts older than specified days, keeping metadata."""
     _require_admin(user)
-    
-    from backend.models import Turn
+
     from datetime import timedelta
-    
-    threshold = datetime.now(timezone.utc) - timedelta(days=days)
-    
+
+    from backend.models import Turn
+
+    threshold = datetime.now(UTC) - timedelta(days=days)
+
     # We redact the text_redacted of turns older than the threshold
     # The requirement says "purges raw transcripts... but keeps aggregated insights"
     q = (
@@ -479,11 +483,11 @@ async def purge_data(
     )
     result = await session.execute(q)
     await session.flush()
-    
+
     await audit_log(session, user_id=user.id, action="purge_data",
                     resource_type="system", resource_id="retention",
                     details={"days": days, "rows_affected": result.rowcount})
-    
+
     return PurgeResponse(purged_count=result.rowcount, message=f"Purged {result.rowcount} turns older than {days} days")
 
 

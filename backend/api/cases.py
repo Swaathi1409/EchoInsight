@@ -13,17 +13,17 @@ Routes:
   DELETE /api/v1/cases/{case_id}/conversations/{conv_id} - unlink
 """
 from __future__ import annotations
+
 import logging
 import uuid
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.deps import get_current_user
 from backend.api.audit import audit_log
+from backend.api.deps import get_current_user
 from backend.db import _db_session_dependency
 from backend.models import Case, CaseConversation, Conversation, User
 

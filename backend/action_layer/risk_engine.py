@@ -17,24 +17,22 @@ SAFETY:
 """
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 from backend.action_layer.config import DEFAULT_COMMITMENT_DUE_SOON_HOURS
 from backend.action_layer.phrase_lists import (
-    CANCELLATION_INTENT_PHRASES,
-    PRICE_SENSITIVE_PHRASES,
-    BILLING_REASON_PHRASES,
-    BROKEN_PROMISE_PHRASES,
     ANGER_PHRASES,
-    FIRM_EXIT_PHRASES,
+    BILLING_REASON_PHRASES,
+    CANCELLATION_INTENT_PHRASES,
     DECLINED_OFFER_PHRASES,
-    TIME_PRESSURE_PHRASES,
     DEFAULT_HIGH_IMPACT_REASONS,
-    find_matching_phrases,
+    FIRM_EXIT_PHRASES,
     PHRASE_LISTS_VERSION,
+    PRICE_SENSITIVE_PHRASES,
+    TIME_PRESSURE_PHRASES,
+    find_matching_phrases,
 )
 
 RISK_RULES_VERSION = "risk_example_v1"

@@ -14,9 +14,11 @@ The verifier uses a separate prompt (preferably a different model) that receives
 only the claim, cited evidence and minimal context.
 """
 from __future__ import annotations
+
 import logging
-from backend.llm.client import chat_json
+
 from backend.config.settings import get_settings
+from backend.llm.client import chat_json
 
 logger = logging.getLogger(__name__)
 

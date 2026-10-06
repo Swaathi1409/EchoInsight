@@ -4,8 +4,8 @@ Adds asst_* tables for the EchoInsight Assistant feature.
 Additive only — no existing tables are modified.
 Reversible: downgrade drops asst_* tables in reverse order.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0003"
 down_revision = "0002"

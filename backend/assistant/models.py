@@ -6,11 +6,16 @@ Never modifies or references existing table definitions.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import (
-    Boolean, DateTime, Float, ForeignKey, Integer, String, Text,
-    func,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,7 +24,7 @@ from backend.models import Base
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _new_uuid() -> str:
@@ -61,7 +66,7 @@ class AsstSession(Base):
     # JSON: { resolved_entities: {}, active_filters: {}, last_3_headlines: [] }
     context_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
 
-    messages: Mapped[list["AsstMessage"]] = relationship(
+    messages: Mapped[list[AsstMessage]] = relationship(
         "AsstMessage", back_populates="session", cascade="all, delete-orphan"
     )
 
@@ -96,8 +101,8 @@ class AsstMessage(Base):
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
 
-    session: Mapped["AsstSession"] = relationship("AsstSession", back_populates="messages")
-    feedback: Mapped[list["AsstFeedback"]] = relationship(
+    session: Mapped[AsstSession] = relationship("AsstSession", back_populates="messages")
+    feedback: Mapped[list[AsstFeedback]] = relationship(
         "AsstFeedback", back_populates="message", cascade="all, delete-orphan"
     )
 
@@ -116,4 +121,4 @@ class AsstFeedback(Base):
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
 
-    message: Mapped["AsstMessage"] = relationship("AsstMessage", back_populates="feedback")
+    message: Mapped[AsstMessage] = relationship("AsstMessage", back_populates="feedback")

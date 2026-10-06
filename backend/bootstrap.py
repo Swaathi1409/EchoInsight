@@ -1,13 +1,14 @@
-import yaml
-from pathlib import Path
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from datetime import datetime, timezone
 import hashlib
 import json
 import logging
+from datetime import UTC, datetime
+from pathlib import Path
 
-from backend.models import QAChecklist, QAChecklistVersion, QAChecklistItem
+import yaml
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.models import QAChecklist, QAChecklistItem, QAChecklistVersion
 
 logger = logging.getLogger(__name__)
 
@@ -21,16 +22,16 @@ async def bootstrap_qa_checklists(session: AsyncSession) -> None:
     """Idempotently seed the QA checklists from YAML files."""
     for p in sorted(POLICY_DIR.glob("checklist_*.yaml")):
         try:
-            with open(p, "r", encoding="utf-8") as f:
+            with open(p, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
-            
+
             version_str = p.stem.replace("checklist_", "")
-            
+
             # YAML format is a bit loose. Expected fields based on policy_example_v1.yaml:
             checklist_key = version_str.split("_v")[0] if "_v" in version_str else version_str
             version_num = int(data.get("version", 1))
             name = data.get("label", f"Checklist {checklist_key}")
-            
+
             # Find or create QAChecklist
             q = select(QAChecklist).where(QAChecklist.key == checklist_key)
             result = await session.execute(q)
@@ -44,7 +45,7 @@ async def bootstrap_qa_checklists(session: AsyncSession) -> None:
                 session.add(checklist)
                 await session.flush()
                 logger.info(f"Created QA Checklist: {checklist_key}")
-            
+
             # Check if this exact version exists
             content_hash = _compute_hash(data)
             q_ver = select(QAChecklistVersion).where(
@@ -52,31 +53,31 @@ async def bootstrap_qa_checklists(session: AsyncSession) -> None:
                 QAChecklistVersion.version_number == version_num
             )
             ver = (await session.execute(q_ver)).scalar_one_or_none()
-            
+
             if ver:
                 # If exists, continue. Idempotent.
                 continue
-            
+
             # Create version
             settings = {
                 "scoring": data.get("scoring", {}),
                 "churn_risk_signals": data.get("churn_risk_signals", {})
             }
-            
+
             ver = QAChecklistVersion(
                 checklist_id=checklist.id,
                 version_number=version_num,
                 status="active",
                 source="yaml_seed",
                 created_by="system",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
                 content_hash=content_hash,
                 settings=settings,
             )
             session.add(ver)
             await session.flush()
             logger.info(f"Created QA Checklist Version: {checklist_key} v{version_num}")
-            
+
             # Create items
             items_data = data.get("checklist_items", [])
             for idx, item in enumerate(items_data):
@@ -95,9 +96,9 @@ async def bootstrap_qa_checklists(session: AsyncSession) -> None:
                     applicability_note=item.get("applicability_condition")
                 )
                 session.add(db_item)
-            
+
             await session.commit()
-            
+
         except Exception as e:
             logger.error(f"Error bootstrapping checklist from {p}: {e}")
             await session.rollback()

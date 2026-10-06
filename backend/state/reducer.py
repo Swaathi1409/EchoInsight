@@ -4,11 +4,11 @@ provisional state. Append-only: writes StateEvent rows, derives current
 state by replaying them.
 """
 from __future__ import annotations
+
 import uuid
-from datetime import datetime, timezone
-from backend.domain_model import (
-    ChurnRisk, CommitmentStatus, CustomerSentiment, ResolutionStatus
-)
+from datetime import UTC, datetime
+
+from backend.domain_model import ChurnRisk, CommitmentStatus, CustomerSentiment, ResolutionStatus
 
 
 def _sentinel_sentiment(signals: list[str]) -> ChurnRisk:
@@ -83,7 +83,7 @@ def apply_turn_extraction(
     state["commitments"] = commitments
     state["open_commitments"] = [c for c in commitments if c.get("status") not in ("completed", "cancelled")]
     state["as_of_turn_id"] = turn_id
-    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    state["updated_at"] = datetime.now(UTC).isoformat()
     return state
 
 
@@ -100,5 +100,5 @@ def initial_state(conversation_id: str) -> dict:
         "churn_signals": [],
         "commitments": [],
         "open_commitments": [],
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }

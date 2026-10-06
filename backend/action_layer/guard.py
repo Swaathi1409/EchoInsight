@@ -9,8 +9,8 @@ act_settings row; in development the seed-demo endpoint handles this.
 from __future__ import annotations
 
 from fastapi.responses import JSONResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.action_layer.config import DISABLED_RESPONSE
 from backend.action_layer.models import ActSettings

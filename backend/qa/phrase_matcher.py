@@ -6,8 +6,9 @@ This is the primary deterministic layer. The LLM QA scorer handles contextual
 judgments (empathy, explanations). This matcher handles explicit policy phrases.
 """
 from __future__ import annotations
+
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 MATCHER_VERSION = "v1"
 

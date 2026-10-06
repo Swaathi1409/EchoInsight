@@ -1,6 +1,8 @@
 """Tests using the 30 synthetic QA fixtures to verify scorer logic."""
 from __future__ import annotations
+
 import pytest
+
 from backend.qa.scorer import score
 from tests.fixtures.qa_fixtures import FIXTURES
 

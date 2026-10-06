@@ -12,14 +12,21 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
-    Boolean, DateTime, Float, ForeignKey, Index, Integer,
-    String, Text, UniqueConstraint, func,
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
 )
-from sqlalchemy import JSON
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.models import Base  # reuse the same declarative base so Alembic sees all tables
-
 
 # ── Rules versions ────────────────────────────────────────────────────────────
 

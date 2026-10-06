@@ -12,7 +12,7 @@ Label: "example policy — owner review required before production use"
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 AGENT_INSIGHTS_VERSION = "agent_insights_example_v1"

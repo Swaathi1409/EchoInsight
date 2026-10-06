@@ -1,6 +1,8 @@
 """QA scorer: compute coverage, score, and compliance flags from LLM QA items."""
 from __future__ import annotations
+
 import uuid
+
 from backend.domain_model import DEFAULT_COVERAGE_THRESHOLD, DEFAULT_CRITICAL_VIOLATION_SCORE_CAP
 
 ITEM_WEIGHTS = {
@@ -28,7 +30,7 @@ def score(items: list[dict], db_items: list = None, settings: dict = None) -> di
     db_items = db_items or []
     settings = settings or {}
     scoring_settings = settings.get("scoring", {})
-    
+
     # Map for easy lookup
     db_items_map = {}
     for di in db_items:
@@ -40,7 +42,7 @@ def score(items: list[dict], db_items: list = None, settings: dict = None) -> di
     for item in items:
         item_id = item.get("item_id", "")
         result = item.get("result", "needs_review")
-        
+
         db_item = db_items_map.get(item_id)
         if db_item:
             weight = getattr(db_item, 'weight', 1.0) if not isinstance(db_item, dict) else db_item.get('weight', 1.0)

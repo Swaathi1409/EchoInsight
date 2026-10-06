@@ -13,7 +13,7 @@ Rules:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 PLAYBOOK_RULES_VERSION = "playbook_example_v1"

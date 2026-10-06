@@ -9,8 +9,9 @@ when the UTC day rolls over.
 For production: replace with a Redis INCR + EXPIRE or DB counter.
 """
 from __future__ import annotations
+
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class BudgetExceededError(Exception):
 
 
 def _today_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return datetime.now(UTC).strftime("%Y-%m-%d")
 
 
 def _reset_if_new_day() -> None:

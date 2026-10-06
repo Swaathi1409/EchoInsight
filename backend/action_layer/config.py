@@ -26,6 +26,7 @@ def _env_flag() -> bool:
 
 # Module-level cached value (set once on first import of this module after server start)
 import os as _os
+
 _raw = _os.getenv("ACTION_LAYER_ENABLED", "false").strip().lower()
 ACTION_LAYER_ENABLED_ENV: bool = _raw in ("1", "true", "yes")
 

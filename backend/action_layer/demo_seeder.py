@@ -12,7 +12,7 @@ Label: "DEMONSTRATION DATA — not real production records"
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.action_layer.derive_job import derive_all_pending
 from backend.action_layer.issues_derive_job import derive_recurring_issues
-from backend.action_layer.models import ActInitiative, ActSettings, ActRecurringIssue
+from backend.action_layer.models import ActInitiative, ActRecurringIssue, ActSettings
 from backend.models import AuditLog
 
 logger = structlog.get_logger(__name__)
@@ -94,7 +94,7 @@ async def seed_demonstration(
         if first_issue:
             # Create a demonstration initiative at the 'check' stage
             # so the UI has something meaningful to show
-            impl_date = datetime(2026, 9, 15, tzinfo=timezone.utc)
+            impl_date = datetime(2026, 9, 15, tzinfo=UTC)
             baseline = {
                 "n": first_issue.volume,
                 "unresolved_rate": first_issue.unresolved_rate,
@@ -123,7 +123,7 @@ async def seed_demonstration(
                 target_metric="unresolved_rate",
                 target_change="Reduce by 20 percentage points within 30 days of implementation",
                 owner="[DEMO] Contact Centre Operations",
-                due_date=datetime(2026, 10, 31, tzinfo=timezone.utc),
+                due_date=datetime(2026, 10, 31, tzinfo=UTC),
                 baseline_window_start=first_issue.window_start,
                 baseline_window_end=first_issue.window_end,
                 baseline_metrics_json=baseline,

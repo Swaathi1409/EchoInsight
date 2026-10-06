@@ -34,17 +34,23 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.action_layer.guard import is_action_layer_enabled, disabled_response
+from backend.action_layer.guard import disabled_response, is_action_layer_enabled
 from backend.action_layer.models import (
-    ActDraft, ActInitiative, ActInitiativeEvent, ActItem, ActRecommendation,
-    ActRecurringIssue, ActSettings, ActPreventionSuggestion,
+    ActDraft,
+    ActInitiative,
+    ActInitiativeEvent,
+    ActItem,
+    ActPreventionSuggestion,
+    ActRecommendation,
+    ActRecurringIssue,
+    ActSettings,
 )
 from backend.action_layer.repository import CoreRepository
-from backend.action_layer.risk_engine import compute_what_if, RiskComponent, RiskResult
-from backend.action_layer.workflow import transition_item, WorkflowError
+from backend.action_layer.risk_engine import RiskComponent, RiskResult, compute_what_if
+from backend.action_layer.workflow import WorkflowError, transition_item
 from backend.api.deps import get_current_user
 from backend.db import _db_session_dependency
 from backend.models import AuditLog

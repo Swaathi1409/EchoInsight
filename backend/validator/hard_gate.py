@@ -15,8 +15,9 @@ Error categories: invalid_model_json, unsupported_evidence, inconsistent_state,
                   provider_timeout, provider_rate_limited.
 """
 from __future__ import annotations
-import re
+
 import logging
+import re
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)

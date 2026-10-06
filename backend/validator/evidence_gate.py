@@ -2,6 +2,7 @@
 Evidence gate: verify every LLM claim has an exact-quote match in the redacted transcript.
 """
 from __future__ import annotations
+
 import re
 
 

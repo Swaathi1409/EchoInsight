@@ -17,19 +17,24 @@ Tests:
 """
 from __future__ import annotations
 
+from datetime import UTC
+
 import pytest
 import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-
-from backend.models import Base
-from backend.action_layer.models import (   # noqa: F401 – registers tables with Base
-    ActSettings, ActInitiative, ActInitiativeEvent,
-    ActRulesVersion, ActItem, ActRecommendation, ActDraft,
-    ActRecurringIssue, ActPreventionSuggestion,
+from backend.action_layer.models import (
+    ActDraft,
+    ActInitiative,
+    ActInitiativeEvent,
+    ActItem,
+    ActPreventionSuggestion,
+    ActRecommendation,
+    ActRecurringIssue,
+    ActRulesVersion,
+    ActSettings,
 )
-from backend.models import User
-
+from backend.models import Base, User
 
 # ── In-memory async engine for these tests ────────────────────────────────────
 
@@ -123,8 +128,8 @@ async def test_gate_do_to_check_requires_date():
 # 6. Do→Check passes with both fields
 @pytest.mark.asyncio
 async def test_gate_do_to_check_passes():
-    from datetime import datetime, timezone
-    err = _validate_do_to_check("Fix deployed", datetime(2024, 1, 15, tzinfo=timezone.utc))
+    from datetime import datetime
+    err = _validate_do_to_check("Fix deployed", datetime(2024, 1, 15, tzinfo=UTC))
     assert err is None
 
 

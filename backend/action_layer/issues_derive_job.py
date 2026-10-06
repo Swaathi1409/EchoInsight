@@ -9,16 +9,17 @@ Rules:
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 import structlog
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.action_layer.derive_job import get_as_of, _get_settings
+from backend.action_layer.derive_job import _get_settings, get_as_of
 from backend.action_layer.models import (
-    ActInitiative, ActPreventionSuggestion, ActRecurringIssue,
+    ActInitiative,
+    ActPreventionSuggestion,
+    ActRecurringIssue,
 )
 from backend.action_layer.prevention_library import get_prevention_suggestions
 from backend.action_layer.recurrence_engine import (

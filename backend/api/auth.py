@@ -1,7 +1,9 @@
 """Auth router: POST /api/v1/auth/login, GET /api/v1/auth/me"""
 from __future__ import annotations
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+
 from backend.api.deps import get_current_user
 from backend.auth import create_access_token, verify_password
 from backend.db import _db_session_dependency

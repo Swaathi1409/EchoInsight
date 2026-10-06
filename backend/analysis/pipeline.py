@@ -2,22 +2,24 @@
 Final analysis pipeline: build transcript, call LLM, gate evidence, score QA, persist.
 """
 from __future__ import annotations
+
 import logging
 import uuid
-from datetime import datetime, timezone
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config.settings import get_settings
 from backend.llm.client import chat_json
 from backend.llm.prompts import (
-    FINAL_ANALYSIS_SCHEMA, QA_SCHEMA,
-    build_final_messages, build_qa_messages,
+    FINAL_ANALYSIS_SCHEMA,
+    QA_SCHEMA,
+    build_final_messages,
+    build_qa_messages,
 )
-from backend.validator.evidence_gate import gate_commitments, gate_qa_items
+from backend.models import Analysis, Commitment, Conversation, QAResult, Turn
 from backend.qa.scorer import score as qa_score
-from backend.models import Analysis, Conversation, QAResult, Turn, Commitment
-from backend.config.settings import get_settings
+from backend.validator.evidence_gate import gate_commitments, gate_qa_items
 
 logger = logging.getLogger(__name__)
 PROMPT_VERSION = "v1"
@@ -178,9 +180,9 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
         qa_transcript, _ = _build_transcript(turns[-WINDOW_SIZE:])
     else:
         qa_transcript = transcript
-        
-    from backend.models import QAChecklist, QAChecklistVersion, QAChecklistItem
-    from sqlalchemy.orm import selectinload
+
+
+    from backend.models import QAChecklist, QAChecklistItem, QAChecklistVersion
     # Load the active checklist version
     # Fallback to example if not found
     checklist_key = POLICY_VERSION.split("_")[0] if "_" in POLICY_VERSION else POLICY_VERSION
@@ -188,9 +190,9 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
         QAChecklist.key == checklist_key,
         QAChecklistVersion.status == "active"
     ).order_by(QAChecklistVersion.version_number.desc()).limit(1)
-    
+
     active_version = (await session.execute(q_ver)).scalar_one_or_none()
-    
+
     if active_version:
         q_items = select(QAChecklistItem).where(QAChecklistItem.version_id == active_version.id).order_by(QAChecklistItem.display_order)
         db_items = (await session.execute(q_items)).scalars().all()
@@ -209,8 +211,10 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
     turns_list = [{"turn_id": t.turn_id, "speaker": t.speaker, "text": t.text_redacted} for t in turns]
     try:
         from backend.qa.phrase_matcher import (
-            check_prohibited_promises, check_greeting,
-            check_identity_verification, check_closure
+            check_closure,
+            check_greeting,
+            check_identity_verification,
+            check_prohibited_promises,
         )
         phrase_overrides = {
             "prohibited_promises": check_prohibited_promises(turns_list),
@@ -287,7 +291,7 @@ async def run_final_analysis(conversation_id: str, session: AsyncSession) -> str
 
     # Validator hard gate: all 7 conditions must pass
     try:
-        from backend.validator.hard_gate import validate_analysis, log_validation_errors
+        from backend.validator.hard_gate import log_validation_errors, validate_analysis
         gate_result = validate_analysis(raw, turns_by_id, qa_items_verified)
         log_validation_errors(gate_result, conversation_id)
         if not gate_result.passed:

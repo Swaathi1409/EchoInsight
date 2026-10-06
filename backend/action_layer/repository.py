@@ -10,12 +10,18 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import (
-    Analysis, Commitment, Conversation, QAResult, Turn, Case,
-    CaseConversation, Agent, Team,
+    Agent,
+    Analysis,
+    Case,
+    CaseConversation,
+    Commitment,
+    Conversation,
+    QAResult,
+    Turn,
 )
 
 

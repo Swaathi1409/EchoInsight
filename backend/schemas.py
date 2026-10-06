@@ -8,9 +8,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 try:
     from backend.domain_model import (
@@ -35,24 +34,20 @@ try:
     )
 except ImportError:
     from domain_model import (  # type: ignore[no-redef]
-        ActionEventType,
         CallReason,
         ChurnRisk,
         CommitmentStatus,
         ConversationEndReason,
         ConversationStatus,
         CustomerSentiment,
-        EvidenceType,
         FindingType,
         JobStatus,
         JobType,
         QACheckItemId,
-        QACheckResult,
         ResolutionStatus,
         SpeakerRole,
         TurnExtractionStatus,
         UserRole,
-        VerificationResult,
     )
 
 

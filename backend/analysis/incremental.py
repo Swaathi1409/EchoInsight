@@ -3,15 +3,17 @@ Per-turn extraction: lightweight LLM call for a single turn.
 Called inline during append_turn for incremental provisional state updates.
 """
 from __future__ import annotations
+
 import logging
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.llm.client import chat_json
 from backend.llm.prompts import TURN_EXTRACTION_SCHEMA, build_turn_messages
-from backend.validator.evidence_gate import gate_commitments, check_quote
-from backend.state.reducer import apply_turn_extraction
 from backend.models import Turn
+from backend.state.reducer import apply_turn_extraction
+from backend.validator.evidence_gate import check_quote
 
 logger = logging.getLogger(__name__)
 

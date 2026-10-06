@@ -8,9 +8,12 @@ authenticated user, action name, resource type and ID, and any relevant detail.
 The audit log is never modified or deleted. Purge is a separate retention operation.
 """
 from __future__ import annotations
+
 import logging
 from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.models import AuditLog
 
 logger = logging.getLogger(__name__)

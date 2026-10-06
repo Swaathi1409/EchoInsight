@@ -6,7 +6,6 @@ stray-numeral rejection, master-switch-off non-regression.
 """
 from __future__ import annotations
 
-import json
 import pytest
 
 # ── Tool registry tests ────────────────────────────────────────────────────────
@@ -324,8 +323,8 @@ def test_disabled_response_shape():
 
 def test_fallback_always_works():
     """Deterministic fallback must work with empty tool results."""
-    from backend.assistant.pipeline import _build_fallback
     from backend.assistant.checks import CheckOutcome
+    from backend.assistant.pipeline import _build_fallback
     payload = _build_fallback([], CheckOutcome(), "2024-12-31", [], "test")
     assert payload.is_fallback is True
     assert payload.headline != ""
@@ -334,8 +333,8 @@ def test_fallback_always_works():
 
 def test_fallback_with_list_results():
     """Fallback builds table from list tool results."""
-    from backend.assistant.pipeline import _build_fallback, ToolCallResult
     from backend.assistant.checks import CheckOutcome
+    from backend.assistant.pipeline import ToolCallResult, _build_fallback
     fake_result = ToolCallResult(
         call_id="tc_x",
         tool_name="list_conversations",
@@ -384,6 +383,7 @@ async def test_pipeline_ignores_injection_in_plan():
     The pipeline falls back rather than executing an unknown tool.
     """
     import json as _json
+
     from backend.assistant.llm_adapter import MockLLMAdapter
     from backend.assistant.pipeline import AssistantPipeline
 
@@ -421,6 +421,7 @@ async def test_pipeline_ignores_injection_in_plan():
 async def test_out_of_scope_question_handled():
     """Out-of-scope questions return is_out_of_scope=True, no tool execution."""
     import json as _json
+
     from backend.assistant.llm_adapter import MockLLMAdapter
     from backend.assistant.pipeline import AssistantPipeline
 
@@ -454,6 +455,7 @@ async def test_out_of_scope_question_handled():
 async def test_clarification_flow():
     """Needs-clarification response is returned without tool execution."""
     import json as _json
+
     from backend.assistant.llm_adapter import MockLLMAdapter
     from backend.assistant.pipeline import AssistantPipeline
 

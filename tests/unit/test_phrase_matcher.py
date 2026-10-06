@@ -2,11 +2,14 @@
 Unit tests for the phrase matcher.
 No LLM, no database. Pure deterministic logic.
 """
-import pytest
 from backend.qa.phrase_matcher import (
-    check_greeting, check_prohibited_promises,
-    check_identity_verification, check_closure,
-    check_disclosure_trigger, PhraseMatchResult, _normalize, _is_negated
+    _is_negated,
+    _normalize,
+    check_closure,
+    check_disclosure_trigger,
+    check_greeting,
+    check_identity_verification,
+    check_prohibited_promises,
 )
 
 

@@ -5,13 +5,9 @@ No real database server required.
 """
 from __future__ import annotations
 
-import asyncio
-import os
-
 import httpx
 import pytest
 import pytest_asyncio
-
 
 # ---- env setup -------------------------------------------------------
 
@@ -39,9 +35,9 @@ def setup_env(monkeypatch):
 @pytest_asyncio.fixture
 async def app_client(setup_env):
     """Async httpx client wired to the FastAPI app via ASGI transport."""
-    from backend.config.settings import get_settings
-    from backend.db import init_db, create_all_tables, close_db
     from backend.api.main import create_app
+    from backend.config.settings import get_settings
+    from backend.db import close_db, create_all_tables, init_db
 
     s = get_settings()
     init_db(s.database_url)

@@ -2,15 +2,18 @@
 FastAPI auth dependency: extract and validate JWT, scope to role.
 """
 from __future__ import annotations
+
 from typing import Annotated
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy import select
+
 from backend.auth import decode_token
 from backend.db import _db_session_dependency
-from backend.models import User
 from backend.domain_model import UserRole
+from backend.models import User
 
 bearer = HTTPBearer(auto_error=False)
 

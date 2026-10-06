@@ -8,9 +8,8 @@ Additional CORE integration tests covering the master prompt test matrix:
 - GET conversation list (scope, pagination)
 """
 from __future__ import annotations
+
 import pytest
-import pytest_asyncio
-import httpx
 
 from tests.integration.test_lifecycle import _login
 

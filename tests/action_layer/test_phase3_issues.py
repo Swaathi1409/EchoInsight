@@ -6,20 +6,17 @@ All fixtures are SYNTHETIC — not real production data.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-import pytest
-
-from backend.action_layer.recurrence_engine import (
-    detect_recurring_issues,
-    compute_pdca_check,
-)
 from backend.action_layer.prevention_library import get_prevention_suggestions
-
+from backend.action_layer.recurrence_engine import (
+    compute_pdca_check,
+    detect_recurring_issues,
+)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-AS_OF = datetime(2026, 10, 3, 12, 0, 0, tzinfo=timezone.utc)
+AS_OF = datetime(2026, 10, 3, 12, 0, 0, tzinfo=UTC)
 
 
 def make_conv(
