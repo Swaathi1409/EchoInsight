@@ -1,4 +1,4 @@
-# EchoInsight
+<img width="1365" height="675" alt="ss (23)" src="https://github.com/user-attachments/assets/869f4b28-6b4a-422b-9681-913012a98b0b" /># EchoInsight
 
 A telecom contact center conversation intelligence and agent quality platform. It ingests call transcripts, redacts PII before storage, runs LLM-powered analysis on conversation end, scores agent quality against a weighted checklist, and presents everything through a role-scoped dashboard.
 
@@ -300,3 +300,116 @@ For a production deployment with persistent data, set `DATABASE_URL` to a Postgr
 | [docs/submission/RUBRIC_MAPPING.md](docs/submission/RUBRIC_MAPPING.md) | Rubric self-assessment |
 | [docs/submission/ADDITIONAL_EXPLORATION.md](docs/submission/ADDITIONAL_EXPLORATION.md) | Explorations beyond the assignment |
 | [docs/submission/SYSTEM_HEALTH_EVALS.md](docs/submission/SYSTEM_HEALTH_EVALS.md) | System health and eval metrics |
+
+---
+
+## Screenshots
+
+Dashboard - Overview:
+
+<img width="1365" height="675" alt="ss (5)" src="https://github.com/user-attachments/assets/5ac7f791-1c62-470e-a692-eb6ff8a08d1a" />
+
+
+List of conversations:
+
+<img width="1131" height="628" alt="image" src="https://github.com/user-attachments/assets/e6065bcc-f936-4b7a-8e6d-6165c5a09eca" />
+
+
+Analysis of a conversation:
+
+<img width="893" height="632" alt="image" src="https://github.com/user-attachments/assets/916c1a4b-9f2a-4833-a713-45c7e6d0f85b" />
+
+
+QA Score of the conversation with evidence:
+
+<img width="1126" height="608" alt="image" src="https://github.com/user-attachments/assets/65500f35-e128-4664-9090-12743eded823" />
+
+
+Commitments proposed in the conversation:
+
+<img width="1126" height="438" alt="image" src="https://github.com/user-attachments/assets/feac01c9-28c7-4091-bf52-c150e6fa8fbc" />
+
+
+Option for an reviewer to review the work done by EchoInsight AI on a periodic basis and add comments:
+
+<img width="1121" height="571" alt="image" src="https://github.com/user-attachments/assets/4c15eeae-7d20-4247-b223-43d7069cfdbf" />
+
+
+Live demo to test the project and see live analysis:
+
+<img width="1365" height="680" alt="ss (2)" src="https://github.com/user-attachments/assets/55789f34-9dd5-46fa-8a70-f9f81fd01550" />
+
+
+Action Intelligence Layer:
+
+<img width="1365" height="687" alt="ss (6)" src="https://github.com/user-attachments/assets/093976fd-6ea1-4fec-8785-f63ffc59b94a" />
+
+Recover Desk:
+
+<img width="1123" height="612" alt="ss (10)" src="https://github.com/user-attachments/assets/36445d2a-adb4-45d2-9815-fb44d2dfd9b5" />
+<img width="1126" height="610" alt="ss (11)" src="https://github.com/user-attachments/assets/f3491d2c-f3aa-478d-898c-ce2292903a48" />
+
+Follow up Draft suggestion:
+
+<img width="1126" height="617" alt="ss (12)" src="https://github.com/user-attachments/assets/91ace1e2-8d61-4063-bf2e-38bad562f35b" />
+
+What if scenarios to check how risk of churning reduces or increases based on set of factors:
+
+<img width="1365" height="668" alt="ss (14)" src="https://github.com/user-attachments/assets/60c29c4e-8f4f-48f0-b304-0d40991d13a3" />
+
+
+Highlighting Recurring issue:
+
+<img width="1365" height="667" alt="ss (15)" src="https://github.com/user-attachments/assets/38194fa2-cec2-4a3c-a3b4-b07c58e85707" />
+
+<img width="1123" height="635" alt="ss (16)" src="https://github.com/user-attachments/assets/5a026196-7429-46ae-bdd0-8a40450558da" />
+
+
+Key action layer - PDCA Initiative:
+
+<img width="870" height="563" alt="ss (18)" src="https://github.com/user-attachments/assets/393951de-118a-4da2-b264-829bf31a1fab" />
+
+
+Analyzing how different agents performs:
+
+<img width="1365" height="688" alt="ss (19)" src="https://github.com/user-attachments/assets/37d60b20-2541-43e7-b8ce-e5bd56951313" />
+
+<img width="1127" height="618" alt="ss (20)" src="https://github.com/user-attachments/assets/cbf8bfcb-9af8-48af-8e51-cc767c036d40" />
+
+<img width="1147" height="630" alt="ss (21)" src="https://github.com/user-attachments/assets/f878fd11-c61e-4ba9-b18a-5c39a6a1d1ab" />
+
+
+Chat Assistant:
+
+<img width="1365" height="675" alt="ss (23)" src="https://github.com/user-attachments/assets/7afbb49e-eddf-4630-a00c-951416caa7e7" />
+
+Help Tab in chat assistant:
+
+<img width="1126" height="632" alt="ss (24)" src="https://github.com/user-attachments/assets/59d4f8d9-8e0c-4244-9f60-0fc8d45ea829" />
+
+Sample conversation:
+
+<img width="1365" height="674" alt="ss (26)" src="https://github.com/user-attachments/assets/b0a3a9fe-2edc-4ee7-888c-119acb184ea0" />
+<img width="1365" height="671" alt="ss (27)" src="https://github.com/user-attachments/assets/5f5920dd-bd6c-4464-8d4a-d52091d16270" />
+
+
+Admin Panel:
+
+<img width="1365" height="688" alt="ss (28)" src="https://github.com/user-attachments/assets/700105a7-d984-427a-a15d-d8263aff685b" />
+
+Audit logs for security and reliability purpose:
+
+<img width="1365" height="672" alt="ss (29)" src="https://github.com/user-attachments/assets/eb3c3c39-e85e-4eb6-ac84-0daeb866c197" />
+
+Checklists: (Example of sample policy that project follows):
+
+<img width="1365" height="664" alt="ss (30)" src="https://github.com/user-attachments/assets/e1c199c8-c38a-40ca-a74e-a4105430ebc5" />
+
+<img width="1232" height="672" alt="ss (1)" src="https://github.com/user-attachments/assets/8f1bcda8-df57-4735-b7cc-ef8bcb3525c5" />
+
+
+
+
+
+
+
