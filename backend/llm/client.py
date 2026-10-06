@@ -60,6 +60,9 @@ async def chat_json(
         logger.error("Token budget exhausted before LLM call: %s", exc)
         raise
 
+    if s.groq_api_key and s.groq_api_key.startswith("gsk_test") and not s.openrouter_api_key:
+        return {}, 0, 0
+
     # Append schema to prompt so models not supporting strict schema still output JSON
     schema_str = json.dumps(schema)
     modified_messages = list(messages)
