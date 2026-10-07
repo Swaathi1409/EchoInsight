@@ -168,7 +168,8 @@ function StatusBadge({ status }) {
 // ---------------------------------------------------------------------------
 // Main Dashboard
 // ---------------------------------------------------------------------------
-export default function Dashboard({ onSelectConv }) {
+export default function Dashboard({ onSelectConv, role = 'agent' }) {
+  const isAgent = role === 'agent';
   const [convs, setConvs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -340,19 +341,19 @@ export default function Dashboard({ onSelectConv }) {
       {error && <div className="error-banner" style={{ marginBottom: 16 }}>{error}</div>}
 
       {/* KPI Cards */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
         <KPICard icon={<Activity size={20} color="var(--accent)" />} label="Total Analyzed" value={analyzed}
           sub={`${active} active${pendingAnalysis > 0 ? ` · ${pendingAnalysis} pending analysis` : ''}`} color="var(--accent)" />
         <KPICard icon={<CheckCircle size={20} color="var(--green)" />} label="Resolved" value={resolved}
           sub={analyzed ? `${((resolved / analyzed) * 100).toFixed(0)}% of analyzed` : ''} color="var(--green)" />
         <KPICard icon={<BarChart2 size={20} color="var(--accent)" />} label="Avg QA Score" value={avgQA}
           sub={`${withQA.length} scored`} color="var(--accent)" />
-        <KPICard icon={<AlertCircle size={20} color="var(--amber)" />} label="Open Commitments" value={openCommitCount}
-          color="var(--amber)" />
-        <KPICard icon={<AlertTriangle size={20} color="var(--red)" />} label="False Resolutions" value={withFR}
-          color="var(--red)" />
-        <KPICard icon={<Shield size={20} color="var(--red)" />} label="High Churn Risk" value={churnCounts.high}
-          color="var(--red)" />
+        {!isAgent && <KPICard icon={<AlertCircle size={20} color="var(--amber)" />} label="Open Commitments" value={openCommitCount}
+          color="var(--amber)" />}
+        {!isAgent && <KPICard icon={<AlertTriangle size={20} color="var(--red)" />} label="False Resolutions" value={withFR}
+          color="var(--red)" />}
+        {!isAgent && <KPICard icon={<Shield size={20} color="var(--red)" />} label="High Churn Risk" value={churnCounts.high}
+          color="var(--red)" />}
       </div>
 
       {/* Tabs */}
@@ -360,8 +361,10 @@ export default function Dashboard({ onSelectConv }) {
         {[
           ['overview', 'Overview'],
           ['conversations', 'Conversations'],
-          ['commitments', `Open Commitments (${openCommitCount})`],
-          ['false_resolutions', `False Resolutions (${withFR})`],
+          ...(!isAgent ? [
+            ['commitments', `Open Commitments (${openCommitCount})`],
+            ['false_resolutions', `False Resolutions (${withFR})`],
+          ] : []),
         ].map(([id, label]) => (
           <button key={id} onClick={() => setActiveTab(id)}
             style={{
@@ -378,7 +381,8 @@ export default function Dashboard({ onSelectConv }) {
       {/* ---- OVERVIEW TAB ---- */}
       {activeTab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Health Summary Bar */}
+          {/* Health Summary Bar — admin/supervisor only */}
+          {!isAgent && (
           <div className="grid-3" style={{
             gap: 12,
             padding: '16px 20px', background: 'var(--bg-card)', borderRadius: 'var(--radius)',
@@ -396,6 +400,7 @@ export default function Dashboard({ onSelectConv }) {
               </div>
             ))}
           </div>
+          )}
 
           {/* Charts Row */}
           <div className="grid-2" style={{ gap: 14 }}>

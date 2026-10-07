@@ -53,10 +53,12 @@ export default function App() {
   const isPrivileged = ['admin', 'supervisor'].includes(role);
   const currentUser = { role };
 
+  const isAgent = role === 'agent';
+
   const navItems = [
     { label: 'Overview',  icon: LayoutDashboard, href: '#/',          active: isOverview },
     { label: 'Live Demo', icon: Mic2,            href: '#/demo',       active: isDemo },
-    { label: 'Action',    icon: Zap,             href: '#/action',     active: isAction },
+    ...(!isAgent ? [{ label: 'Action', icon: Zap, href: '#/action', active: isAction }] : []),
     { label: 'Assistant', icon: MessageSquare,   href: '#/assistant',  active: isAssistant },
     ...(isPrivileged ? [{ label: 'Admin', icon: Shield, href: '#/admin', active: isAdmin }] : []),
   ];
@@ -129,11 +131,11 @@ export default function App() {
           ? <LiveDemo />
           : isAdmin
           ? <AdminPanel />
-          : isAction
+          : isAction && !isAgent
           ? <ActionLayerShell currentUser={currentUser} />
           : isAssistant
           ? <AssistantPage currentRoute={hash} />
-          : <Dashboard onSelectConv={(id) => { window.location.hash = `#/conversation/${id}`; }} />
+          : <Dashboard onSelectConv={(id) => { window.location.hash = `#/conversation/${id}`; }} role={role} />
         }
       </main>
     </div>
