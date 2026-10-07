@@ -246,6 +246,30 @@ print("Recurring Issues:")
 for r in c.execute("SELECT id, reason_label, volume FROM act_recurring_issues").fetchall():
     print(f"  {dict(r)}")
 
+# ── 12. Seed QA failure and False Resolution for agent1/agent2 for demo ─────
+import json
+print("\nSeeding flagged items for agent1 (agent_00) and agent2 (agent_02)...")
+for a_id in ('agent_00', 'agent_02'):
+    rows = c.execute("SELECT id FROM conversations WHERE agent_id=?", (a_id,)).fetchall()
+    if rows:
+        cid = rows[0][0]
+        c.execute("UPDATE analyses SET false_resolution=1 WHERE conversation_id=?", (cid,))
+        qa = c.execute("SELECT items_json FROM qa_results WHERE conversation_id=?", (cid,)).fetchone()
+        if qa and qa[0]:
+            items = json.loads(qa[0])
+            for i in items:
+                if i.get("item_id") == "empathy":
+                    i["result"] = "fail"
+                    i["reasoning"] = "Agent failed to acknowledge frustration."
+            c.execute("UPDATE qa_results SET items_json=?, score=80.0, items_needs_review=1 WHERE conversation_id=?", (json.dumps(items), cid))
+        
+        # also create a review annotation for it
+        import uuid
+        rid = uuid.uuid4().hex
+        c.execute("INSERT OR REPLACE INTO review_annotations (review_id, conversation_id, verdict, notes, created_at) VALUES (?, ?, ?, ?, ?)",
+                  (rid, cid, "needs_rework", "Please sound more empathetic next time.", "2026-10-07 10:00:00"))
+
+conn.commit()
 conn.close()
 print("\nSeed complete.")
 print("\nLOGIN CREDENTIALS:")

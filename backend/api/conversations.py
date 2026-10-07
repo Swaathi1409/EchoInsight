@@ -846,6 +846,49 @@ async def agent_analytics(
         .where(Analysis.conversation_id.in_(conv_ids), Analysis.false_resolution == True)
     )).scalar_one()
 
+    qa_breakdown_stats = {}
+    for q in qa_rows:
+        items = q.items_json if isinstance(q.items_json, list) else []
+        for item in items:
+            item_id = item.get("item_id")
+            if not item_id:
+                continue
+            res = item.get("result")
+            if res in ("pass", "fail"):
+                if item_id not in qa_breakdown_stats:
+                    qa_breakdown_stats[item_id] = {"pass": 0, "total": 0}
+                qa_breakdown_stats[item_id]["total"] += 1
+                if res == "pass":
+                    qa_breakdown_stats[item_id]["pass"] += 1
+
+    qa_breakdown = []
+    for item_id, stats in qa_breakdown_stats.items():
+        rate = stats["pass"] / stats["total"] if stats["total"] > 0 else 0
+        qa_breakdown.append({
+            "item_id": item_id,
+            "pass_rate": round(rate * 100),
+            "flagged": rate < 0.7
+        })
+
+    # Flagged calls: false_resolution or items_needs_review
+    # We can find them efficiently from the rows we have or just a quick query
+    flagged_calls = []
+    # Find false resolutions
+    fr_rows = (await session.execute(
+        select(Conversation.id).join(Analysis, Analysis.conversation_id == Conversation.id)
+        .where(Conversation.id.in_(conv_ids), Analysis.false_resolution == True)
+    )).scalars().all()
+    for cid in fr_rows:
+        flagged_calls.append({"id": cid, "reason": "False Resolution"})
+    
+    # Find needs review
+    nr_rows = [q.conversation_id for q in qa_rows if q.items_needs_review > 0]
+    for cid in nr_rows:
+        if not any(f["id"] == cid for f in flagged_calls):
+            flagged_calls.append({"id": cid, "reason": "Human Review Required"})
+            
+    # Remove duplicates if any (already handled above)
+
     return {
         "agent_id": agent_id,
         "conversations": len(conv_ids),
@@ -854,6 +897,8 @@ async def agent_analytics(
         "critical_violations": critical,
         "false_resolutions": fr_count,
         "synthetic_assignment": True,
+        "qa_breakdown": qa_breakdown,
+        "flagged_calls": flagged_calls,
     }
 
 

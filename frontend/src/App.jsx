@@ -49,9 +49,10 @@ export default function App() {
   const isAssistant = hash === '#/assistant';
   const isOverview  = !convMatch && !isDemo && !isAdmin && !isAction && !isAssistant;
 
-  const role = authed ? (parseJwt(getToken()).role || 'agent') : 'agent';
+  const jwtData = authed ? parseJwt(getToken()) : {};
+  const role = jwtData.role || 'agent';
   const isPrivileged = ['admin', 'supervisor'].includes(role);
-  const currentUser = { role };
+  const currentUser = { role, agentId: jwtData.sub || jwtData.agent_id };
 
   const isAgent = role === 'agent';
 
@@ -135,7 +136,7 @@ export default function App() {
           ? <ActionLayerShell currentUser={currentUser} />
           : isAssistant
           ? <AssistantPage currentRoute={hash} />
-          : <Dashboard onSelectConv={(id) => { window.location.hash = `#/conversation/${id}`; }} role={role} />
+          : <Dashboard onSelectConv={(id) => { window.location.hash = `#/conversation/${id}`; }} role={role} agentId={currentUser.agentId} />
         }
       </main>
     </div>

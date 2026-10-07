@@ -168,9 +168,10 @@ function StatusBadge({ status }) {
 // ---------------------------------------------------------------------------
 // Main Dashboard
 // ---------------------------------------------------------------------------
-export default function Dashboard({ onSelectConv, role = 'agent' }) {
+export default function Dashboard({ onSelectConv, role = 'agent', agentId }) {
   const isAgent = role === 'agent';
   const [convs, setConvs] = useState([]);
+  const [agentStats, setAgentStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -220,6 +221,10 @@ export default function Dashboard({ onSelectConv, role = 'agent' }) {
       }
       
       if (frResult.status === 'fulfilled') setFalseResolutions(Array.isArray(frResult.value) ? frResult.value : []);
+
+      if (isAgent && agentId) {
+        api.getAgentAnalytics(agentId).then(setAgentStats).catch(console.error);
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -400,6 +405,45 @@ export default function Dashboard({ onSelectConv, role = 'agent' }) {
               </div>
             ))}
           </div>
+          )}
+
+          {/* Agent Insights (Agent View Only) */}
+          {isAgent && agentStats && (
+            <div className="grid-2" style={{ gap: 14 }}>
+              <div className="card" style={{ minWidth: 0 }}>
+                <div className="card-header"><span className="card-title">My QA Breakdown</span></div>
+                <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {agentStats.qa_breakdown?.map(item => (
+                    <div key={item.item_id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 140, fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.item_id.replace(/_/g, ' ')}>{item.item_id.replace(/_/g, ' ')}</div>
+                      <div style={{ flex: 1, height: 12, background: 'var(--bg-secondary)', borderRadius: 6, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${item.pass_rate}%`, background: item.flagged ? 'var(--amber)' : 'var(--green)', borderRadius: 6 }} />
+                      </div>
+                      <div style={{ width: 50, fontSize: 12, fontWeight: 700, color: item.flagged ? 'var(--amber)' : 'var(--text-primary)', textAlign: 'right' }}>
+                        {item.pass_rate}% {item.flagged ? '⚠️' : ''}
+                      </div>
+                    </div>
+                  ))}
+                  {!agentStats.qa_breakdown?.length && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No QA data available yet.</div>}
+                </div>
+              </div>
+
+              <div className="card" style={{ minWidth: 0 }}>
+                <div className="card-header"><span className="card-title">Needs My Attention</span></div>
+                <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {agentStats.flagged_calls?.map(c => (
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 6, cursor: 'pointer', border: '1px solid transparent' }} onClick={() => onSelectConv(c.id)} onMouseOver={e => e.currentTarget.style.borderColor = 'var(--accent)'} onMouseOut={e => e.currentTarget.style.borderColor = 'transparent'}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <AlertTriangle size={14} color="var(--amber)" />
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>Conv #{c.id.slice(0, 6)}</span>
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{c.reason}</span>
+                    </div>
+                  ))}
+                  {!agentStats.flagged_calls?.length && <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}><CheckCircle size={14} color="var(--green)" /> All caught up! No flagged calls.</div>}
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Charts Row */}
