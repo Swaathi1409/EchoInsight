@@ -127,4 +127,5 @@ export const api = {
   health: () => fetch(`${API}/health`).then(handle),
   ready: () => fetch(`${API}/ready`).then(handle),
   metrics: () => fetch(`${API}/metrics`).then(r => r.text()),
+  getMe: () => fetch(`${API}/api/v1/auth/me`, { headers: headers() }).then(handle),
 };

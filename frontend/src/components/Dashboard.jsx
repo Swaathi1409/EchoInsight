@@ -168,13 +168,21 @@ function StatusBadge({ status }) {
 // ---------------------------------------------------------------------------
 // Main Dashboard
 // ---------------------------------------------------------------------------
-export default function Dashboard({ onSelectConv, role = 'agent', agentId }) {
+export default function Dashboard({ onSelectConv, role = 'agent', agentId: agentIdProp }) {
   const isAgent = role === 'agent';
   const [convs, setConvs] = useState([]);
   const [agentStats, setAgentStats] = useState(null);
+  const [resolvedAgentId, setResolvedAgentId] = useState(agentIdProp || null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+
+  // Resolve agentId from /me endpoint if not in JWT (old tokens)
+  useEffect(() => {
+    if (isAgent && !resolvedAgentId) {
+      api.getMe().then(me => { if (me.agent_id) setResolvedAgentId(me.agent_id); }).catch(() => {});
+    }
+  }, [isAgent, resolvedAgentId]);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
@@ -227,8 +235,8 @@ export default function Dashboard({ onSelectConv, role = 'agent', agentId }) {
       
       if (frResult.status === 'fulfilled') setFalseResolutions(Array.isArray(frResult.value) ? frResult.value : []);
 
-      if (isAgent && agentId) {
-        api.getAgentAnalytics(agentId).then(setAgentStats).catch(console.error);
+      if (isAgent && resolvedAgentId) {
+        api.getAgentAnalytics(resolvedAgentId).then(setAgentStats).catch(console.error);
       }
     } catch (e) {
       setError(e.message);
