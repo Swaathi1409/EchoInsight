@@ -14,7 +14,7 @@ const headers = (extra = {}) => ({
 });
 
 const handle = async (res) => {
-  if (res.status === 401 || res.status === 403) { clearToken(); window.location.hash = '#/login'; throw new Error('Unauthorized'); }
+  if (res.status === 401) { clearToken(); window.location.hash = '#/login'; throw new Error('Unauthorized'); }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail));

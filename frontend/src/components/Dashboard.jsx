@@ -204,10 +204,15 @@ export default function Dashboard({ onSelectConv, role = 'agent', agentId }) {
       setConvs(Array.isArray(data) ? data : []);
       setError('');
       // Secondary: non-fatal — silently ignore failures
-      const [ocResult, frResult] = await Promise.allSettled([
-        api.getOpenCommitments(50),
-        api.getFalseResolutions(),
-      ]);
+      let ocResult = { status: 'rejected' };
+      let frResult = { status: 'rejected' };
+      
+      if (!isAgent) {
+        [ocResult, frResult] = await Promise.allSettled([
+          api.getOpenCommitments(50),
+          api.getFalseResolutions(),
+        ]);
+      }
       
       if (ocResult.status === 'fulfilled') {
         const flatCommitments = [];
