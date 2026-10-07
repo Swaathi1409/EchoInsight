@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     enable_metrics: bool = True
 
     # Seed users (comma-separated username:password:role)
-    seed_users: str = "admin:changeme_admin:admin"
+    seed_users: str = "admin:changeme_admin:admin,agent1:agent1pass:agent,agent2:agent2pass:agent"
 
     # Demo data seeding: set to true to seed full demo data on startup.
     # Required for PostgreSQL deployments (Render) where demo_seed.db is not used.
