@@ -168,21 +168,11 @@ function StatusBadge({ status }) {
 // ---------------------------------------------------------------------------
 // Main Dashboard
 // ---------------------------------------------------------------------------
-export default function Dashboard({ onSelectConv, role = 'agent', agentId: agentIdProp }) {
-  const isAgent = role === 'agent';
+export default function Dashboard({ onSelectConv }) {
   const [convs, setConvs] = useState([]);
-  const [agentStats, setAgentStats] = useState(null);
-  const [resolvedAgentId, setResolvedAgentId] = useState(agentIdProp || null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-
-  // Resolve agentId from /me endpoint if not in JWT (old tokens)
-  useEffect(() => {
-    if (isAgent && !resolvedAgentId) {
-      api.getMe().then(me => { if (me.agent_id) setResolvedAgentId(me.agent_id); }).catch(() => {});
-    }
-  }, [isAgent, resolvedAgentId]);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
@@ -212,15 +202,10 @@ export default function Dashboard({ onSelectConv, role = 'agent', agentId: agent
       setConvs(Array.isArray(data) ? data : []);
       setError('');
       // Secondary: non-fatal — silently ignore failures
-      let ocResult = { status: 'rejected' };
-      let frResult = { status: 'rejected' };
-      
-      if (!isAgent) {
-        [ocResult, frResult] = await Promise.allSettled([
-          api.getOpenCommitments(50),
-          api.getFalseResolutions(),
-        ]);
-      }
+      const [ocResult, frResult] = await Promise.allSettled([
+        api.getOpenCommitments(50),
+        api.getFalseResolutions(),
+      ]);
       
       if (ocResult.status === 'fulfilled') {
         const flatCommitments = [];
@@ -234,10 +219,6 @@ export default function Dashboard({ onSelectConv, role = 'agent', agentId: agent
       }
       
       if (frResult.status === 'fulfilled') setFalseResolutions(Array.isArray(frResult.value) ? frResult.value : []);
-
-      if (isAgent && resolvedAgentId) {
-        api.getAgentAnalytics(resolvedAgentId).then(setAgentStats).catch(console.error);
-      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -359,19 +340,19 @@ export default function Dashboard({ onSelectConv, role = 'agent', agentId: agent
       {error && <div className="error-banner" style={{ marginBottom: 16 }}>{error}</div>}
 
       {/* KPI Cards */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
         <KPICard icon={<Activity size={20} color="var(--accent)" />} label="Total Analyzed" value={analyzed}
           sub={`${active} active${pendingAnalysis > 0 ? ` · ${pendingAnalysis} pending analysis` : ''}`} color="var(--accent)" />
         <KPICard icon={<CheckCircle size={20} color="var(--green)" />} label="Resolved" value={resolved}
           sub={analyzed ? `${((resolved / analyzed) * 100).toFixed(0)}% of analyzed` : ''} color="var(--green)" />
         <KPICard icon={<BarChart2 size={20} color="var(--accent)" />} label="Avg QA Score" value={avgQA}
           sub={`${withQA.length} scored`} color="var(--accent)" />
-        {!isAgent && <KPICard icon={<AlertCircle size={20} color="var(--amber)" />} label="Open Commitments" value={openCommitCount}
-          color="var(--amber)" />}
-        {!isAgent && <KPICard icon={<AlertTriangle size={20} color="var(--red)" />} label="False Resolutions" value={withFR}
-          color="var(--red)" />}
-        {!isAgent && <KPICard icon={<Shield size={20} color="var(--red)" />} label="High Churn Risk" value={churnCounts.high}
-          color="var(--red)" />}
+        <KPICard icon={<AlertCircle size={20} color="var(--amber)" />} label="Open Commitments" value={openCommitCount}
+          color="var(--amber)" />
+        <KPICard icon={<AlertTriangle size={20} color="var(--red)" />} label="False Resolutions" value={withFR}
+          color="var(--red)" />
+        <KPICard icon={<Shield size={20} color="var(--red)" />} label="High Churn Risk" value={churnCounts.high}
+          color="var(--red)" />
       </div>
 
       {/* Tabs */}
@@ -379,10 +360,8 @@ export default function Dashboard({ onSelectConv, role = 'agent', agentId: agent
         {[
           ['overview', 'Overview'],
           ['conversations', 'Conversations'],
-          ...(!isAgent ? [
-            ['commitments', `Open Commitments (${openCommitCount})`],
-            ['false_resolutions', `False Resolutions (${withFR})`],
-          ] : []),
+          ['commitments', `Open Commitments (${openCommitCount})`],
+          ['false_resolutions', `False Resolutions (${withFR})`],
         ].map(([id, label]) => (
           <button key={id} onClick={() => setActiveTab(id)}
             style={{
@@ -399,8 +378,7 @@ export default function Dashboard({ onSelectConv, role = 'agent', agentId: agent
       {/* ---- OVERVIEW TAB ---- */}
       {activeTab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Health Summary Bar — admin/supervisor only */}
-          {!isAgent && (
+          {/* Health Summary Bar */}
           <div className="grid-3" style={{
             gap: 12,
             padding: '16px 20px', background: 'var(--bg-card)', borderRadius: 'var(--radius)',
@@ -418,46 +396,6 @@ export default function Dashboard({ onSelectConv, role = 'agent', agentId: agent
               </div>
             ))}
           </div>
-          )}
-
-          {/* Agent Insights (Agent View Only) */}
-          {isAgent && agentStats && (
-            <div className="grid-2" style={{ gap: 14 }}>
-              <div className="card" style={{ minWidth: 0 }}>
-                <div className="card-header"><span className="card-title">My QA Breakdown</span></div>
-                <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {agentStats.qa_breakdown?.map(item => (
-                    <div key={item.item_id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 140, fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.item_id.replace(/_/g, ' ')}>{item.item_id.replace(/_/g, ' ')}</div>
-                      <div style={{ flex: 1, height: 12, background: 'var(--bg-secondary)', borderRadius: 6, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${item.pass_rate}%`, background: item.flagged ? 'var(--amber)' : 'var(--green)', borderRadius: 6 }} />
-                      </div>
-                      <div style={{ width: 50, fontSize: 12, fontWeight: 700, color: item.flagged ? 'var(--amber)' : 'var(--text-primary)', textAlign: 'right' }}>
-                        {item.pass_rate}% {item.flagged ? '⚠️' : ''}
-                      </div>
-                    </div>
-                  ))}
-                  {!agentStats.qa_breakdown?.length && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No QA data available yet.</div>}
-                </div>
-              </div>
-
-              <div className="card" style={{ minWidth: 0 }}>
-                <div className="card-header"><span className="card-title">Needs My Attention</span></div>
-                <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {agentStats.flagged_calls?.map(c => (
-                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 6, cursor: 'pointer', border: '1px solid transparent' }} onClick={() => onSelectConv(c.id)} onMouseOver={e => e.currentTarget.style.borderColor = 'var(--accent)'} onMouseOut={e => e.currentTarget.style.borderColor = 'transparent'}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <AlertTriangle size={14} color="var(--amber)" />
-                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>Conv #{c.id.slice(0, 6)}</span>
-                      </div>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{c.reason}</span>
-                    </div>
-                  ))}
-                  {!agentStats.flagged_calls?.length && <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}><CheckCircle size={14} color="var(--green)" /> All caught up! No flagged calls.</div>}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Charts Row */}
           <div className="grid-2" style={{ gap: 14 }}>

@@ -49,17 +49,16 @@ export default function App() {
   const isAssistant = hash === '#/assistant';
   const isOverview  = !convMatch && !isDemo && !isAdmin && !isAction && !isAssistant;
 
-  const jwtData = authed ? parseJwt(getToken()) : {};
-  const role = jwtData.role || 'agent';
+  const jwtPayload = authed ? parseJwt(getToken()) : {};
+  const role = jwtPayload.role || 'agent';
+  const agent_id = jwtPayload.agent_id || null;
   const isPrivileged = ['admin', 'supervisor'].includes(role);
-  const currentUser = { role, agentId: jwtData.sub || jwtData.agent_id };
-
-  const isAgent = role === 'agent';
+  const currentUser = { role, agent_id };
 
   const navItems = [
     { label: 'Overview',  icon: LayoutDashboard, href: '#/',          active: isOverview },
     { label: 'Live Demo', icon: Mic2,            href: '#/demo',       active: isDemo },
-    ...(!isAgent ? [{ label: 'Action', icon: Zap, href: '#/action', active: isAction }] : []),
+    { label: 'Action',    icon: Zap,             href: '#/action',     active: isAction },
     { label: 'Assistant', icon: MessageSquare,   href: '#/assistant',  active: isAssistant },
     ...(isPrivileged ? [{ label: 'Admin', icon: Shield, href: '#/admin', active: isAdmin }] : []),
   ];
@@ -132,11 +131,11 @@ export default function App() {
           ? <LiveDemo />
           : isAdmin
           ? <AdminPanel />
-          : isAction && !isAgent
+          : isAction
           ? <ActionLayerShell currentUser={currentUser} />
           : isAssistant
           ? <AssistantPage currentRoute={hash} />
-          : <Dashboard onSelectConv={(id) => { window.location.hash = `#/conversation/${id}`; }} role={role} agentId={currentUser.agentId} />
+          : <Dashboard onSelectConv={(id) => { window.location.hash = `#/conversation/${id}`; }} />
         }
       </main>
     </div>

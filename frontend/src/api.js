@@ -14,7 +14,7 @@ const headers = (extra = {}) => ({
 });
 
 const handle = async (res) => {
-  if (res.status === 401) { clearToken(); window.location.hash = '#/login'; throw new Error('Unauthorized'); }
+  if (res.status === 401 || res.status === 403) { clearToken(); window.location.hash = '#/login'; throw new Error('Unauthorized'); }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail));
@@ -127,5 +127,4 @@ export const api = {
   health: () => fetch(`${API}/health`).then(handle),
   ready: () => fetch(`${API}/ready`).then(handle),
   metrics: () => fetch(`${API}/metrics`).then(r => r.text()),
-  getMe: () => fetch(`${API}/api/v1/auth/me`, { headers: headers() }).then(handle),
 };

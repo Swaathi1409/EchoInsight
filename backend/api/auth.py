@@ -22,10 +22,11 @@ async def login(body: LoginRequest,
     user = result.scalar_one_or_none()
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    payload = {"sub": str(user.id), "role": user.role}
-    if user.agent_id:
-        payload["agent_id"] = user.agent_id
-    token, expires_in = create_access_token(payload)
+    token, expires_in = create_access_token({
+        "sub": str(user.id),
+        "role": user.role,
+        "agent_id": user.agent_id
+    })
     return TokenResponse(access_token=token, expires_in=expires_in)
 
 
