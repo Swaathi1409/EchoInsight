@@ -113,7 +113,7 @@ async def poll_loop() -> None:
                                 idempotency_key=f"final-idle-{conv.id}-{uuid.uuid4().hex[:8]}",
                             ))
 
-                closed_threshold = now - timedelta(hours=72)
+                closed_threshold = now - timedelta(days=30)
                 ended_convs = (await session.execute(
                     select(Conversation).where(
                         Conversation.status == ConversationStatus.ENDED.value
@@ -124,7 +124,7 @@ async def poll_loop() -> None:
                     if conv.ended_at:
                         ended_t = conv.ended_at.replace(tzinfo=UTC) if conv.ended_at.tzinfo is None else conv.ended_at
                         if ended_t < closed_threshold:
-                            logger.info("Closing 72h expired conversation %s", conv.id[:8])
+                            logger.info("Closing 30d expired conversation %s", conv.id[:8])
                             conv.status = ConversationStatus.CLOSED.value
 
                 await session.flush()
