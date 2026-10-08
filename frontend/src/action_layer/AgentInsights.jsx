@@ -1,26 +1,24 @@
 // frontend/src/action_layer/AgentInsights.jsx
 // Agent profile viewer — shows computed metrics with disclaimers, n, and bands.
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { actionApi } from "./api.js";
 
 const BAND_COLORS = { strong: "#22c55e", developing: "#f59e0b", needs_attention: "#ef4444", no_qa_data: "#94a3b8" };
 
 export default function AgentInsights({ currentUser }) {
-  const isAgent = currentUser?.role === "agent";
-  const defaultAgentId = isAgent && currentUser?.agent_id ? currentUser.agent_id : "";
-  const [agentId, setAgentId] = useState(defaultAgentId);
+  const [agentId, setAgentId] = useState("");
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const lookup = async (idToLookup = agentId) => {
-    if (!idToLookup.trim()) return;
+  const lookup = async () => {
+    if (!agentId.trim()) return;
     setLoading(true);
     setError(null);
     setProfile(null);
     try {
-      const data = await actionApi.agentProfile(idToLookup.trim());
+      const data = await actionApi.agentProfile(agentId.trim());
       setProfile(data.profile);
     } catch (e) {
       setError(e?.data?.detail || "Failed to load profile");
@@ -28,12 +26,6 @@ export default function AgentInsights({ currentUser }) {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (isAgent && defaultAgentId) {
-      lookup(defaultAgentId);
-    }
-  }, [isAgent, defaultAgentId]);
 
   return (
     <div className="al-pane">
@@ -44,20 +36,18 @@ export default function AgentInsights({ currentUser }) {
         </p>
       </div>
 
-      {!isAgent && (
-        <div className="al-agent-search">
-          <input
-            type="text"
-            placeholder="Enter agent ID…"
-            value={agentId}
-            onChange={(e) => setAgentId(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && lookup()}
-          />
-          <button className="al-btn-primary" onClick={() => lookup()} disabled={loading}>
-            {loading ? "Loading…" : "Look up"}
-          </button>
-        </div>
-      )}
+      <div className="al-agent-search">
+        <input
+          type="text"
+          placeholder="Enter agent ID…"
+          value={agentId}
+          onChange={(e) => setAgentId(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && lookup()}
+        />
+        <button className="al-btn-primary" onClick={lookup} disabled={loading}>
+          {loading ? "Loading…" : "Look up"}
+        </button>
+      </div>
 
       {error && <div className="al-error">{error}</div>}
 

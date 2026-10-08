@@ -563,10 +563,10 @@ async def reopen_conversation(
 
     if conv.ended_at:
         ended_t = conv.ended_at.replace(tzinfo=UTC) if conv.ended_at.tzinfo is None else conv.ended_at
-        if datetime.now(UTC) - ended_t > timedelta(hours=72):
+        if datetime.now(UTC) - ended_t > timedelta(days=30):
             conv.status = ConversationStatus.CLOSED.value
             await session.flush()
-            raise HTTPException(status_code=409, detail="Resume window (72 hours) has expired. Conversation is now closed.")
+            raise HTTPException(status_code=409, detail="Resume window (30 days) has expired. Conversation is now closed.")
 
     from backend.models import Segment
     last_turn = (await session.execute(
@@ -704,7 +704,7 @@ async def _get_or_404(conv_id: str, session: AsyncSession, user: User) -> Conver
     # Lazy resume window timeout
     if conv.status == ConversationStatus.ENDED.value and conv.ended_at:
         ended_t = conv.ended_at.replace(tzinfo=UTC) if conv.ended_at.tzinfo is None else conv.ended_at
-        if (datetime.now(UTC) - ended_t) > timedelta(hours=72):
+        if (datetime.now(UTC) - ended_t) > timedelta(days=30):
             conv.status = ConversationStatus.CLOSED.value
             await session.flush()
 

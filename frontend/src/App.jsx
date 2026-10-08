@@ -49,11 +49,9 @@ export default function App() {
   const isAssistant = hash === '#/assistant';
   const isOverview  = !convMatch && !isDemo && !isAdmin && !isAction && !isAssistant;
 
-  const jwtPayload = authed ? parseJwt(getToken()) : {};
-  const role = jwtPayload.role || 'agent';
-  const agent_id = jwtPayload.agent_id || null;
+  const role = authed ? (parseJwt(getToken()).role || 'agent') : 'agent';
   const isPrivileged = ['admin', 'supervisor'].includes(role);
-  const currentUser = { role, agent_id };
+  const currentUser = { role };
 
   const navItems = [
     { label: 'Overview',  icon: LayoutDashboard, href: '#/',          active: isOverview },

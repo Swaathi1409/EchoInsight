@@ -57,11 +57,11 @@ else:
 
 conn.commit()
 
-# ── 4. Hash password for agent1 / agent2 ─────────────────────────────────────
-# Use passlib argon2 — must match backend/auth.py (schemes=["argon2"])
+# ── 4. Hash password for agent2 ───────────────────────────────────────────────
+# Use passlib bcrypt like the app does
 try:
     from passlib.context import CryptContext
-    ctx = CryptContext(schemes=["argon2"], deprecated="auto")
+    ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
     h = ctx.hash("agent2pass")
     c.execute("UPDATE users SET password_hash=? WHERE username='agent2'", (h,))
     h1 = ctx.hash("agent1pass")
