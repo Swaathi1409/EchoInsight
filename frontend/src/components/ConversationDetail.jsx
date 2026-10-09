@@ -166,12 +166,12 @@ export default function ConversationDetail({ convId }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Load analysis versions when conv is ended
+  // Load analysis versions when conv is ended or closed
   useEffect(() => {
-    if (!conv || conv.status !== 'ended') return;
+    if (!conv || (conv.status !== 'ended' && conv.status !== 'closed')) return;
     api.getAnalysisVersions(convId).then(setVersions).catch(() => {});
     api.getReviews(convId).then(setReviews).catch(() => {});
-  }, [conv, convId]);
+  }, [conv?.status, convId]);
 
   // Load specific version when selected
   useEffect(() => {
@@ -317,13 +317,13 @@ export default function ConversationDetail({ convId }) {
             {ending ? 'Ending…' : 'End Conversation'}
           </button>
         )}
-        {versions.length > 1 && (
+        {versions.length > 0 && (
           <select value={selectedVersion ?? ''} onChange={e => setSelectedVersion(e.target.value ? Number(e.target.value) : null)}
             title="Select analysis version"
             style={{ fontSize: 12, background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '4px 8px', color: 'var(--text-primary)' }}>
             <option value="">Latest (v{versions[0]?.version})</option>
-            {versions.map(v => (
-              <option key={v.version} value={v.version}>v{v.version} — {v.resolution} {v.provisional ? '(provisional)' : ''}</option>
+            {versions.length > 1 && versions.map(v => (
+              <option key={v.version} value={v.version}>v{v.version} — {v.resolution}{v.provisional ? ' (provisional)' : ''} · {v.created_at ? new Date(v.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}</option>
             ))}
           </select>
         )}
