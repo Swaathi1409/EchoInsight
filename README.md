@@ -102,7 +102,7 @@ Render (FastAPI, Docker)
 
 **Architecture documentation:** [docs/architecture.md](docs/architecture.md)
 
-<img width="3300" height="2550" alt="echoinsight_architecture" src="https://github.com/user-attachments/assets/a71fcdf2-c5ab-4d38-a870-6a152b516733" />
+<img width="3300" height="2550" alt="image" src="https://github.com/user-attachments/assets/229c9fe4-c8ab-44b7-a195-207e9da66c8b" />
 
 ---
 
